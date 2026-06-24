@@ -83,34 +83,6 @@ private fun ColumnScope.FilterSheet(
         onClick = { screenModel.toggleFilter(UpdatesPreferences::filterBookmarked) },
     )
 
-    HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
-
-    val filterExcludedScanlators by screenModel.updatesPreferences.filterExcludedScanlators().collectAsState()
-
-    Row(
-        modifier = Modifier
-            // KMK -->
-            .clickable { screenModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) }
-            // KMK <--
-            .fillMaxWidth()
-            .padding(horizontal = SettingsItemsPaddings.Horizontal),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = stringResource(MR.strings.action_filter_excluded_scanlators),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-
-        Switch(
-            checked = filterExcludedScanlators,
-            // KMK -->
-            onCheckedChange = { screenModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) },
-            // KMK <--
-        )
-    }
-
     // KMK -->
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 

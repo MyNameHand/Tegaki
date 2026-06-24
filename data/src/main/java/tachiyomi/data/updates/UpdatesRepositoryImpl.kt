@@ -32,7 +32,6 @@ class UpdatesRepositoryImpl(
         unread: Boolean?,
         started: Boolean?,
         bookmarked: Boolean?,
-        hideExcludedScanlators: Boolean,
     ): Flow<List<UpdatesWithRelations>> {
         return databaseHandler.subscribeToList {
             updatesViewQueries.getRecentUpdatesWithFilters(
@@ -42,7 +41,6 @@ class UpdatesRepositoryImpl(
                 read = unread?.let { !it },
                 started = started?.toLong(),
                 bookmarked = bookmarked,
-                hideExcludedScanlators = hideExcludedScanlators.toLong(),
                 mapper = ::mapUpdatesWithRelations,
             )
         }
@@ -79,7 +77,6 @@ class UpdatesRepositoryImpl(
         coverLastModified: Long,
         @Suppress("UNUSED_PARAMETER") dateUpload: Long,
         dateFetch: Long,
-        excludedScanlator: String?,
     ): UpdatesWithRelations = UpdatesWithRelations(
         mangaId = mangaId,
         // SY -->

@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupFlatMetadata
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupMergedMangaReference
+import eu.kanade.tachiyomi.data.backup.models.BackupScanlatorFilter
 import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 import exh.EXHMigrations
 import exh.source.MERGED_SOURCE_ID
@@ -99,7 +100,8 @@ class MangaRestorer(
                 backupCategories = backupCategories,
                 history = backupManga.history,
                 tracks = backupManga.tracking,
-                excludedScanlators = backupManga.excludedScanlators,
+                scanlatorFilters = backupManga.scanlatorFilters,
+                legacyExcludedScanlators = backupManga.excludedScanlators,
                 // SY -->
                 mergedMangaReferences = backupManga.mergedMangaReferences,
                 flatMetadata = backupManga.flatMetadata,
@@ -340,7 +342,8 @@ class MangaRestorer(
         backupCategories: List<BackupCategory>,
         history: List<BackupHistory>,
         tracks: List<BackupTracking>,
-        excludedScanlators: List<String>,
+        scanlatorFilters: List<BackupScanlatorFilter>,
+        legacyExcludedScanlators: List<String>,
         // SY -->
         mergedMangaReferences: List<BackupMergedMangaReference>,
         flatMetadata: BackupFlatMetadata?,
@@ -351,7 +354,7 @@ class MangaRestorer(
         restoreChapters(manga, chapters)
         restoreTracking(manga, tracks)
         restoreHistory(manga, history)
-        restoreExcludedScanlators(manga, excludedScanlators)
+        restoreScanlatorFilters(manga, scanlatorFilters, legacyExcludedScanlators)
         updateManga.awaitUpdateFetchInterval(manga, now, currentFetchWindow)
         // SY -->
         restoreMergedMangaReferencesForManga(manga.id, mergedMangaReferences)
@@ -597,24 +600,34 @@ class MangaRestorer(
 
     private fun Track.forComparison() = this.copy(id = 0L, mangaId = 0L)
 
-    /**
-     * Restores the excluded scanlators for the manga.
-     *
-     * @param manga the manga whose excluded scanlators have to be restored.
-     * @param excludedScanlators the excluded scanlators to restore.
-     */
-    private suspend fun restoreExcludedScanlators(manga: Manga, excludedScanlators: List<String>) {
-        if (excludedScanlators.isEmpty()) return
-        val existingExcludedScanlators = handler.awaitList {
-            excluded_scanlatorsQueries.getExcludedScanlatorsByMangaId(manga.id)
-            // KMK -->
-        }.toSet()
-        val toInsert = excludedScanlators.toSet().subtract(existingExcludedScanlators)
-        if (toInsert.isNotEmpty()) {
-            handler.await(inTransaction = true) {
-                // KMK <--
-                toInsert.forEach {
-                    excluded_scanlatorsQueries.insert(manga.id, it)
+    private suspend fun restoreScanlatorFilters(
+        manga: Manga,
+        scanlatorFilters: List<BackupScanlatorFilter>,
+        legacyExcludedScanlators: List<String>,
+    ) {
+        if (scanlatorFilters.isEmpty() && legacyExcludedScanlators.isEmpty()) return
+        handler.await(inTransaction = true) {
+            val existing = scanlator_filterQueries.getScanlatorFilterByMangaId(manga.id).executeAsList()
+            val existingScanlators = existing.map { it.scanlator }.toSet()
+
+            // New-format filters take precedence
+            val filtersToRestore = if (scanlatorFilters.isNotEmpty()) {
+                scanlatorFilters
+            } else {
+                // Migrate legacy excluded scanlators: priority=0, excluded=true
+                legacyExcludedScanlators.mapIndexed { index, scanlator ->
+                    BackupScanlatorFilter(scanlator = scanlator, priority = index, excluded = true)
+                }
+            }
+
+            filtersToRestore.forEach { filter ->
+                if (filter.scanlator !in existingScanlators) {
+                    scanlator_filterQueries.insert(
+                        mangaId = manga.id,
+                        scanlator = filter.scanlator?.takeUnless { it.isEmpty() },
+                        priority = filter.priority.toLong(),
+                        excluded = if (filter.excluded) 1L else 0L,
+                    )
                 }
             }
         }

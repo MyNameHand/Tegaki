@@ -37,18 +37,34 @@ ON chapters.manga_id = max_last_read.manga_id
 -- KMK -->
 LEFT JOIN(
     SELECT
-        chapters.manga_id,
+        manga_id,
         count(*) AS total,
         sum(read) AS readCount,
         sum(bookmark) AS bookmarkCount,
-        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
-        excluded_scanlators.scanlator AS ex_scanlator
-    FROM chapters
-    LEFT JOIN excluded_scanlators
-    ON chapters.manga_id = excluded_scanlators.manga_id
-    AND chapters.scanlator = excluded_scanlators.scanlator
-    WHERE ex_scanlator IS NULL
-    GROUP BY chapters.manga_id
+        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
+    FROM (
+        SELECT
+            C.manga_id,
+            C.read,
+            C.bookmark,
+            coalesce(SF.excluded, 0) AS filter_excluded,
+            ROW_NUMBER() OVER (
+                PARTITION BY C.manga_id, C.chapter_number
+                ORDER BY
+                    CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                    coalesce(SF.priority, 10000000) ASC,
+                    C._id ASC
+            ) AS rank,
+            CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+        FROM chapters C
+        LEFT JOIN scanlator_filter SF
+            ON C.manga_id = SF.manga_id
+            AND C.scanlator IS SF.scanlator
+        LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+            ON C.manga_id = MWF.manga_id
+    )
+    WHERE (has_filter = 0 OR (filter_excluded = 0 AND rank = 1))
+    GROUP BY manga_id
 ) AS C
 ON mangas._id = C.manga_id;
 -- KMK <--

@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupFlatMetadata
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupScanlatorFilter
 import eu.kanade.tachiyomi.data.backup.models.backupChapterMapper
 import eu.kanade.tachiyomi.data.backup.models.backupMergedMangaReferenceMapper
 import eu.kanade.tachiyomi.data.backup.models.backupTrackMapper
@@ -67,9 +68,9 @@ class MangaBackupCreator(
         }
         // SY <--
 
-        mangaObject.excludedScanlators = handler.awaitList {
-            excluded_scanlatorsQueries.getExcludedScanlatorsByMangaId(manga.id)
-        }
+        mangaObject.scanlatorFilters = handler.awaitList {
+            scanlator_filterQueries.getScanlatorFilterByMangaId(manga.id)
+        }.map { BackupScanlatorFilter(it.scanlator, it.priority.toInt(), it.excluded == 1L) }
 
         if (options.chapters) {
             // Backup all the chapters

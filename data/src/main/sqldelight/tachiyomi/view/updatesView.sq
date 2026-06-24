@@ -1,5 +1,45 @@
 -- NOTE: must update MERGED_SOURCE_ID (6969) here
 CREATE VIEW updatesView AS
+WITH UpdatesFilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY C.manga_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    LEFT JOIN scanlator_filter SF
+        ON C.manga_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON C.manga_id = MWF.manga_id
+),
+MergedUpdatesFilteredChapters AS (
+    SELECT
+        C.*,
+        ME.merge_id,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY ME.merge_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    JOIN merged ME ON ME.manga_id = C.manga_id
+    LEFT JOIN scanlator_filter SF
+        ON SF.manga_id = ME.merge_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON MWF.manga_id = ME.merge_id
+)
 SELECT
     mangas._id AS mangaId,
     mangas.title AS mangaTitle,
@@ -15,15 +55,15 @@ SELECT
     mangas.thumbnail_url AS thumbnailUrl,
     mangas.cover_last_modified AS coverLastModified,
     chapters.date_upload AS dateUpload,
-    chapters.date_fetch AS datefetch,
-    excluded_scanlators.scanlator AS excludedScanlator
-FROM mangas JOIN chapters
+    chapters.date_fetch AS datefetch
+FROM mangas JOIN UpdatesFilteredChapters AS chapters
 ON mangas._id = chapters.manga_id
-LEFT JOIN excluded_scanlators
-ON mangas._id = excluded_scanlators.manga_id
-AND chapters.scanlator = excluded_scanlators.scanlator
 WHERE favorite = 1 AND source <> 6969
 AND date_fetch > date_added
+AND (
+    has_filter = 0
+    OR (filter_excluded = 0 AND rank = 1)
+)
 UNION
 SELECT
     mangas._id AS mangaId,
@@ -40,22 +80,22 @@ SELECT
     mangas.thumbnail_url AS thumbnailUrl,
     mangas.cover_last_modified AS coverLastModified,
     chapters.date_upload AS dateUpload,
-    chapters.date_fetch AS datefetch,
-    excluded_scanlators.scanlator AS excludedScanlator
+    chapters.date_fetch AS datefetch
 FROM mangas
 LEFT JOIN (
-    SELECT merged.manga_id,merged.merge_id
+    SELECT merged.manga_id, merged.merge_id
     FROM merged
     GROUP BY merged.merge_id
 ) AS ME
 ON ME.merge_id = mangas._id
-JOIN chapters
-ON ME.manga_id = chapters.manga_id
-LEFT JOIN excluded_scanlators
-ON mangas._id = excluded_scanlators.manga_id
-AND chapters.scanlator = excluded_scanlators.scanlator
+JOIN MergedUpdatesFilteredChapters AS chapters
+ON ME.manga_id = chapters.manga_id AND ME.merge_id = chapters.merge_id
 WHERE favorite = 1 AND source = 6969
 AND date_fetch > date_added
+AND (
+    has_filter = 0
+    OR (filter_excluded = 0 AND rank = 1)
+)
 ORDER BY datefetch DESC;
 
 getRecentUpdates:
@@ -76,9 +116,6 @@ AND (
     OR (:started = 0 AND last_page_read = 0 AND read = 0)
 )
 AND (:bookmarked IS NULL OR bookmark = :bookmarked)
-AND (
-    (excludedScanlator IS NULL OR :hideExcludedScanlators = 0)
-)
 LIMIT :limit;
 
 getUpdatesByReadStatus:

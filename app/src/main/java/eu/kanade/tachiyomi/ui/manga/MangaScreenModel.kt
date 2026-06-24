@@ -29,12 +29,13 @@ import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
 import eu.kanade.domain.chapter.interactor.SetReadStatus
 import eu.kanade.domain.chapter.interactor.SyncChaptersWithSource
-import eu.kanade.domain.manga.interactor.GetExcludedScanlators
+import eu.kanade.domain.manga.interactor.GetScanlatorFilter
 import eu.kanade.domain.manga.interactor.GetPagePreviews
-import eu.kanade.domain.manga.interactor.SetExcludedScanlators
+import eu.kanade.domain.manga.interactor.SetScanlatorFilter
 import eu.kanade.domain.manga.interactor.SmartSearchMerge
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.manga.model.PagePreview
+import eu.kanade.domain.manga.model.ScanlatorFilter
 import eu.kanade.domain.manga.model.chaptersFiltered
 import eu.kanade.domain.manga.model.downloadedFilter
 import eu.kanade.domain.manga.model.toSManga
@@ -214,8 +215,8 @@ class MangaScreenModel(
     // SY <--
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
     private val getAvailableScanlators: GetAvailableScanlators = Injekt.get(),
-    private val getExcludedScanlators: GetExcludedScanlators = Injekt.get(),
-    private val setExcludedScanlators: SetExcludedScanlators = Injekt.get(),
+    private val getScanlatorFilter: GetScanlatorFilter = Injekt.get(),
+    private val setScanlatorFilter: SetScanlatorFilter = Injekt.get(),
     private val setMangaChapterFlags: SetMangaChapterFlags = Injekt.get(),
     private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags = Injekt.get(),
     private val setReadStatus: SetReadStatus = Injekt.get(),
@@ -395,12 +396,12 @@ class MangaScreenModel(
         }
 
         screenModelScope.launchIO {
-            getExcludedScanlators.subscribe(mangaId)
+            getScanlatorFilter.subscribe(mangaId)
                 .flowWithLifecycle(lifecycle)
                 .distinctUntilChanged()
-                .collectLatest { excludedScanlators ->
+                .collectLatest { scanlatorFilter ->
                     updateSuccessState {
-                        it.copy(excludedScanlators = excludedScanlators.toImmutableSet())
+                        it.copy(scanlatorFilter = scanlatorFilter)
                     }
                 }
         }
@@ -477,7 +478,7 @@ class MangaScreenModel(
                         getAvailableScanlators.await(mangaId)
                     }.toImmutableSet(),
                     // SY <--
-                    excludedScanlators = getExcludedScanlators.await(mangaId).toImmutableSet(),
+                    scanlatorFilter = getScanlatorFilter.await(mangaId),
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
                     hideMissingChapters = libraryPreferences.hideMissingChapters().get(),
@@ -1964,9 +1965,9 @@ class MangaScreenModel(
         updateSuccessState { it.copy(dialog = Dialog.Migrate(target = manga, current = duplicate)) }
     }
 
-    fun setExcludedScanlators(excludedScanlators: Set<String>) {
+    fun setScanlatorFilter(scanlatorFilter: List<ScanlatorFilter>) {
         screenModelScope.launchIO {
-            setExcludedScanlators.await(mangaId, excludedScanlators)
+            setScanlatorFilter.await(mangaId, scanlatorFilter)
         }
     }
 
@@ -2012,7 +2013,7 @@ class MangaScreenModel(
             val isFromSource: Boolean,
             val chapters: List<ChapterList.Item>,
             val availableScanlators: ImmutableSet<String>,
-            val excludedScanlators: ImmutableSet<String>,
+            val scanlatorFilter: List<ScanlatorFilter> = emptyList(),
             val trackingCount: Int = 0,
             val hasLoggedInTrackers: Boolean = false,
             val isRefreshingData: Boolean = false,
@@ -2102,7 +2103,7 @@ class MangaScreenModel(
             }
 
             val scanlatorFilterActive: Boolean
-                get() = excludedScanlators.intersect(availableScanlators).isNotEmpty()
+                get() = scanlatorFilter.isNotEmpty()
 
             val filterActive: Boolean
                 get() = scanlatorFilterActive || manga.chaptersFiltered()

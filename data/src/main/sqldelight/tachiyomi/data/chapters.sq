@@ -55,30 +55,61 @@ FROM chapters
 WHERE _id = :id;
 
 getChaptersByMangaId:
-SELECT C.*
-FROM chapters C
+WITH FilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY C.manga_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    LEFT JOIN scanlator_filter SF
+        ON C.manga_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON C.manga_id = MWF.manga_id
+    WHERE C.manga_id = :mangaId
+)
+SELECT
+    C._id,
+    C.manga_id,
+    C.url,
+    C.name,
+    C.scanlator,
+    C.read,
+    C.bookmark,
+    C.last_page_read,
+    C.chapter_number,
+    C.source_order,
+    C.date_fetch,
+    C.date_upload,
+    C.last_modified_at,
+    C.version,
+    C.is_syncing
+FROM FilteredChapters C
 -- KMK -->
 JOIN mangas M ON C.manga_id = M._id
 -- KMK <--
-LEFT JOIN excluded_scanlators ES
-ON C.manga_id = ES.manga_id
-AND C.scanlator = ES.scanlator
-WHERE C.manga_id = :mangaId
-AND (
-    :applyFilter = 0
-    -- KMK -->
-    OR (
-        ES.scanlator IS NULL
-        AND ((M.chapter_flags & :bookmarkUnmask) = 0 OR C.bookmark = 0)
-        AND ((M.chapter_flags & :bookmarkMask) = 0 OR C.bookmark = 1)
-    )
-    -- KMK <--
+WHERE :applyFilter = 0
+-- KMK -->
+OR (
+    (has_filter = 0 OR (filter_excluded = 0 AND rank = 1))
+    AND ((M.chapter_flags & :bookmarkUnmask) = 0 OR C.bookmark = 0)
+    AND ((M.chapter_flags & :bookmarkMask) = 0 OR C.bookmark = 1)
 );
+-- KMK <--
 
 getScanlatorsByMangaId:
 SELECT scanlator
 FROM chapters
-WHERE manga_id = :mangaId;
+WHERE manga_id = :mangaId
+GROUP BY scanlator
+ORDER BY count(*) DESC, max(date_upload) DESC;
 
 getBookmarkedChaptersByMangaId:
 SELECT *
@@ -98,29 +129,56 @@ WHERE url = :chapterUrl
 AND manga_id = :mangaId;
 
 getMergedChaptersByMangaId:
-SELECT C.*
-FROM (
-    SELECT manga_id,merge_id FROM merged WHERE merge_id = :mangaId
-) AS M
-JOIN chapters C
-ON C.manga_id = M.manga_id
-LEFT JOIN excluded_scanlators ES
-ON M.merge_id = ES.manga_id
-AND C.scanlator = ES.scanlator
+WITH FilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY M.merge_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM (
+        SELECT manga_id, merge_id FROM merged WHERE merge_id = :mangaId
+    ) AS M
+    JOIN chapters C ON C.manga_id = M.manga_id
+    LEFT JOIN scanlator_filter SF
+        ON M.merge_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON M.merge_id = MWF.manga_id
+)
+SELECT
+    FC._id,
+    FC.manga_id,
+    FC.url,
+    FC.name,
+    FC.scanlator,
+    FC.read,
+    FC.bookmark,
+    FC.last_page_read,
+    FC.chapter_number,
+    FC.source_order,
+    FC.date_fetch,
+    FC.date_upload,
+    FC.last_modified_at,
+    FC.version,
+    FC.is_syncing
+FROM FilteredChapters FC
 -- KMK -->
 JOIN mangas MA ON MA._id = :mangaId
 -- KMK <--
-WHERE M.merge_id = :mangaId
-AND (
-    :applyFilter = 0
-    -- KMK -->
-    OR (
-        ES.scanlator IS NULL
-        AND ((MA.chapter_flags & :bookmarkUnmask) = 0 OR C.bookmark = 0)
-        AND ((MA.chapter_flags & :bookmarkMask) = 0 OR C.bookmark = 1)
-    )
-    -- KMK <--
+WHERE :applyFilter = 0
+-- KMK -->
+OR (
+    (has_filter = 0 OR (filter_excluded = 0 AND rank = 1))
+    AND ((MA.chapter_flags & :bookmarkUnmask) = 0 OR FC.bookmark = 0)
+    AND ((MA.chapter_flags & :bookmarkMask) = 0 OR FC.bookmark = 1)
 );
+-- KMK <--
 
 getScanlatorsByMergeId:
 SELECT scanlator

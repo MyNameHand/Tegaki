@@ -103,7 +103,6 @@ class UpdatesScreenModel(
                             unread = it.filterUnread.toBooleanOrNull(),
                             started = it.filterStarted.toBooleanOrNull(),
                             bookmarked = it.filterBookmarked.toBooleanOrNull(),
-                            hideExcludedScanlators = it.filterExcludedScanlators,
                         ).distinctUntilChanged()
                     },
                 downloadCache.changes,
@@ -555,14 +554,12 @@ class UpdatesScreenModel(
             updatesPreferences.filterUnread().changes(),
             updatesPreferences.filterStarted().changes(),
             updatesPreferences.filterBookmarked().changes(),
-            updatesPreferences.filterExcludedScanlators().changes(),
-        ) { downloaded, unread, started, bookmarked, excludedScanlators ->
+        ) { downloaded, unread, started, bookmarked ->
             ItemPreferences(
                 filterDownloaded = downloaded,
                 filterUnread = unread,
                 filterStarted = started,
                 filterBookmarked = bookmarked,
-                filterExcludedScanlators = excludedScanlators,
             )
         }
     }
@@ -577,7 +574,6 @@ class UpdatesScreenModel(
         val filterUnread: TriState,
         val filterStarted: TriState,
         val filterBookmarked: TriState,
-        val filterExcludedScanlators: Boolean,
     )
 
     @Immutable

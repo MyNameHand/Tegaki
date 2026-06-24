@@ -1,5 +1,24 @@
 -- NOTE: must update MERGED_SOURCE_ID (6969) here
 CREATE VIEW libraryView AS
+WITH FilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY C.manga_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    LEFT JOIN scanlator_filter SF
+        ON C.manga_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON C.manga_id = MWF.manga_id
+)
 SELECT
     M.*,
     coalesce(C.total, 0) AS totalCount,
@@ -15,25 +34,24 @@ SELECT
 FROM mangas M
 LEFT JOIN (
     SELECT
-        chapters.manga_id,
+        manga_id,
         count(*) AS total,
         sum(read) AS readCount,
-        coalesce(max(chapters.date_upload), 0) AS latestUpload,
+        coalesce(max(date_upload), 0) AS latestUpload,
         coalesce(max(history.last_read), 0) AS lastRead,
-        coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
-        sum(chapters.bookmark) AS bookmarkCount,
+        coalesce(max(date_fetch), 0) AS fetchedAt,
+        sum(bookmark) AS bookmarkCount,
         -- KMK -->
-        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
+        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
         -- KMK <--
-        excluded_scanlators.scanlator AS ex_scanlator
-    FROM chapters
-    LEFT JOIN excluded_scanlators
-    ON chapters.manga_id = excluded_scanlators.manga_id
-    AND chapters.scanlator = excluded_scanlators.scanlator
+    FROM FilteredChapters
     LEFT JOIN history
-    ON chapters._id = history.chapter_id
-    WHERE ex_scanlator IS NULL
-    GROUP BY chapters.manga_id
+    ON FilteredChapters._id = history.chapter_id
+    WHERE (
+        has_filter = 0
+        OR (filter_excluded = 0 AND rank = 1)
+    )
+    GROUP BY manga_id
 ) AS C
 ON M._id = C.manga_id
 LEFT JOIN (
@@ -58,36 +76,57 @@ SELECT
     coalesce(MC.categories, '0') AS categories
 FROM mangas M
 LEFT JOIN (
-    SELECT merged.manga_id,merged.merge_id
+    SELECT merged.manga_id, merged.merge_id
     FROM merged
     GROUP BY merged.merge_id
 ) AS ME
 ON ME.merge_id = M._id
 LEFT JOIN(
     SELECT
-        ME.merge_id,
+        merge_id,
         count(*) AS total,
-        sum(read) AS readCount,
-        coalesce(max(chapters.date_upload), 0) AS latestUpload,
+        sum(merged_chapters.read) AS readCount,
+        coalesce(max(merged_chapters.date_upload), 0) AS latestUpload,
         coalesce(max(history.last_read), 0) AS lastRead,
-        coalesce(max(chapters.date_fetch), 0) AS fetchedAt,
-        sum(chapters.bookmark) AS bookmarkCount,
+        coalesce(max(merged_chapters.date_fetch), 0) AS fetchedAt,
+        sum(merged_chapters.bookmark) AS bookmarkCount,
         -- KMK -->
-        sum(CASE WHEN chapters.bookmark = 1 AND chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
+        sum(CASE WHEN merged_chapters.bookmark = 1 AND merged_chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
         -- KMK <--
-        excluded_scanlators.scanlator AS ex_scanlator
-    FROM chapters
-    LEFT JOIN excluded_scanlators
-    ON chapters.manga_id = excluded_scanlators.manga_id
-    AND chapters.scanlator = excluded_scanlators.scanlator
-    LEFT JOIN history
-    ON chapters._id = history.chapter_id
-    LEFT JOIN merged ME
-    ON ME.manga_id = chapters.manga_id
-    WHERE ex_scanlator IS NULL
-    GROUP BY ME.merge_id
+    FROM (
+        SELECT
+            C._id,
+            C.read,
+            C.bookmark,
+            C.date_upload,
+            C.date_fetch,
+            C.chapter_number,
+            ME2.merge_id,
+            coalesce(SF.excluded, 0) AS filter_excluded,
+            ROW_NUMBER() OVER (
+                PARTITION BY ME2.merge_id, C.chapter_number
+                ORDER BY
+                    CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                    coalesce(SF.priority, 10000000) ASC,
+                    C._id ASC
+            ) AS rank,
+            CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+        FROM chapters C
+        JOIN merged ME2 ON ME2.manga_id = C.manga_id
+        LEFT JOIN scanlator_filter SF
+            ON SF.manga_id = ME2.merge_id
+            AND C.scanlator IS SF.scanlator
+        LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+            ON MWF.manga_id = ME2.merge_id
+    ) AS merged_chapters
+    LEFT JOIN history ON merged_chapters._id = history.chapter_id
+    WHERE (
+        has_filter = 0
+        OR (filter_excluded = 0 AND rank = 1)
+    )
+    GROUP BY merge_id
 ) AS C
-ON M._id = C.merge_id  -- ON ME.merge_id = C.merge_id
+ON M._id = C.merge_id
 LEFT JOIN (
     SELECT manga_id, group_concat(category_id) AS categories
     FROM mangas_categories

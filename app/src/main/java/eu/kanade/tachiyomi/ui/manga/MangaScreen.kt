@@ -647,9 +647,9 @@ class MangaScreen(
         if (showScanlatorsDialog) {
             ScanlatorFilterDialog(
                 availableScanlators = successState.availableScanlators,
-                excludedScanlators = successState.excludedScanlators,
+                scanlatorFilter = successState.scanlatorFilter,
                 onDismissRequest = { showScanlatorsDialog = false },
-                onConfirm = screenModel::setExcludedScanlators,
+                onConfirm = screenModel::setScanlatorFilter,
             )
         }
     }

@@ -1,0 +1,334 @@
+-- Migration: Replace excluded_scanlators with priority-based scanlator_filter
+
+-- Create new scanlator_filter table
+CREATE TABLE scanlator_filter(
+    manga_id INTEGER NOT NULL,
+    scanlator TEXT,
+    priority INTEGER NOT NULL,
+    excluded INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id) ON DELETE CASCADE
+);
+
+CREATE INDEX scanlator_filter_manga_id_index ON scanlator_filter(manga_id);
+
+-- Migrate excluded scanlators: keep them excluded with priority 0
+INSERT INTO scanlator_filter(manga_id, scanlator, priority, excluded)
+SELECT manga_id, scanlator, 0, 1
+FROM excluded_scanlators;
+
+-- Drop old table
+DROP TABLE excluded_scanlators;
+
+-- Recreate historyView with scanlator_filter-based chapter counts
+DROP VIEW IF EXISTS historyView;
+CREATE VIEW historyView AS
+SELECT
+    history._id AS id,
+    mangas._id AS mangaId,
+    chapters._id AS chapterId,
+    mangas.title,
+    mangas.thumbnail_url AS thumbnailUrl,
+    mangas.source,
+    mangas.favorite,
+    mangas.cover_last_modified,
+    chapters.chapter_number AS chapterNumber,
+    -- KMK -->
+    mangas.chapter_flags AS chapterFlags,
+    chapters.read AS read,
+    chapters.last_page_read AS lastPageRead,
+    coalesce(C.total, 0) AS totalCount,
+    coalesce(C.readCount, 0) AS readCount,
+    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
+    coalesce(C.bookmarkReadCount, 0) AS bookmarkReadCount,
+    -- KMK <--
+    history.last_read AS readAt,
+    history.time_read AS readDuration,
+    max_last_read.last_read AS maxReadAt,
+    max_last_read.chapter_id AS maxReadAtChapterId
+FROM mangas
+JOIN chapters
+ON mangas._id = chapters.manga_id
+JOIN history
+ON chapters._id = history.chapter_id
+JOIN (
+    SELECT chapters.manga_id,chapters._id AS chapter_id, MAX(history.last_read) AS last_read
+    FROM chapters JOIN history
+    ON chapters._id = history.chapter_id
+    GROUP BY chapters.manga_id
+) AS max_last_read
+ON chapters.manga_id = max_last_read.manga_id
+-- KMK -->
+LEFT JOIN(
+    SELECT
+        manga_id,
+        count(*) AS total,
+        sum(read) AS readCount,
+        sum(bookmark) AS bookmarkCount,
+        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
+    FROM (
+        SELECT
+            C.manga_id,
+            C.read,
+            C.bookmark,
+            coalesce(SF.excluded, 0) AS filter_excluded,
+            ROW_NUMBER() OVER (
+                PARTITION BY C.manga_id, C.chapter_number
+                ORDER BY
+                    CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                    coalesce(SF.priority, 10000000) ASC,
+                    C._id ASC
+            ) AS rank,
+            CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+        FROM chapters C
+        LEFT JOIN scanlator_filter SF
+            ON C.manga_id = SF.manga_id
+            AND C.scanlator IS SF.scanlator
+        LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+            ON C.manga_id = MWF.manga_id
+    )
+    WHERE (has_filter = 0 OR (filter_excluded = 0 AND rank = 1))
+    GROUP BY manga_id
+) AS C
+ON mangas._id = C.manga_id;
+-- KMK <--
+
+-- Recreate libraryView with scanlator_filter-based deduplication
+-- NOTE: must update MERGED_SOURCE_ID (6969) here
+DROP VIEW IF EXISTS libraryView;
+CREATE VIEW libraryView AS
+WITH FilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY C.manga_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    LEFT JOIN scanlator_filter SF
+        ON C.manga_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON C.manga_id = MWF.manga_id
+)
+SELECT
+    M.*,
+    coalesce(C.total, 0) AS totalCount,
+    coalesce(C.readCount, 0) AS readCount,
+    coalesce(C.latestUpload, 0) AS latestUpload,
+    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+    coalesce(C.lastRead, 0) AS lastRead,
+    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
+    -- KMK -->
+    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
+    -- KMK <--
+    coalesce(MC.categories, '0') AS categories
+FROM mangas M
+LEFT JOIN (
+    SELECT
+        manga_id,
+        count(*) AS total,
+        sum(read) AS readCount,
+        coalesce(max(date_upload), 0) AS latestUpload,
+        coalesce(max(history.last_read), 0) AS lastRead,
+        coalesce(max(date_fetch), 0) AS fetchedAt,
+        sum(bookmark) AS bookmarkCount,
+        -- KMK -->
+        sum(CASE WHEN bookmark = 1 AND read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
+        -- KMK <--
+    FROM FilteredChapters
+    LEFT JOIN history
+    ON FilteredChapters._id = history.chapter_id
+    WHERE (
+        has_filter = 0
+        OR (filter_excluded = 0 AND rank = 1)
+    )
+    GROUP BY manga_id
+) AS C
+ON M._id = C.manga_id
+LEFT JOIN (
+    SELECT manga_id, group_concat(category_id) AS categories
+    FROM mangas_categories
+    GROUP BY manga_id
+) AS MC
+ON MC.manga_id = M._id
+WHERE M.source <> 6969
+UNION
+SELECT
+    M.*,
+    coalesce(C.total, 0) AS totalCount,
+    coalesce(C.readCount, 0) AS readCount,
+    coalesce(C.latestUpload, 0) AS latestUpload,
+    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+    coalesce(C.lastRead, 0) AS lastRead,
+    coalesce(C.bookmarkCount, 0) AS bookmarkCount,
+    -- KMK -->
+    coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,
+    -- KMK <--
+    coalesce(MC.categories, '0') AS categories
+FROM mangas M
+LEFT JOIN (
+    SELECT merged.manga_id, merged.merge_id
+    FROM merged
+    GROUP BY merged.merge_id
+) AS ME
+ON ME.merge_id = M._id
+LEFT JOIN(
+    SELECT
+        merge_id,
+        count(*) AS total,
+        sum(merged_chapters.read) AS readCount,
+        coalesce(max(merged_chapters.date_upload), 0) AS latestUpload,
+        coalesce(max(history.last_read), 0) AS lastRead,
+        coalesce(max(merged_chapters.date_fetch), 0) AS fetchedAt,
+        sum(merged_chapters.bookmark) AS bookmarkCount,
+        -- KMK -->
+        sum(CASE WHEN merged_chapters.bookmark = 1 AND merged_chapters.read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount
+        -- KMK <--
+    FROM (
+        SELECT
+            C._id,
+            C.read,
+            C.bookmark,
+            C.date_upload,
+            C.date_fetch,
+            C.chapter_number,
+            ME2.merge_id,
+            coalesce(SF.excluded, 0) AS filter_excluded,
+            ROW_NUMBER() OVER (
+                PARTITION BY ME2.merge_id, C.chapter_number
+                ORDER BY
+                    CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                    coalesce(SF.priority, 10000000) ASC,
+                    C._id ASC
+            ) AS rank,
+            CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+        FROM chapters C
+        JOIN merged ME2 ON ME2.manga_id = C.manga_id
+        LEFT JOIN scanlator_filter SF
+            ON SF.manga_id = ME2.merge_id
+            AND C.scanlator IS SF.scanlator
+        LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+            ON MWF.manga_id = ME2.merge_id
+    ) AS merged_chapters
+    LEFT JOIN history ON merged_chapters._id = history.chapter_id
+    WHERE (
+        has_filter = 0
+        OR (filter_excluded = 0 AND rank = 1)
+    )
+    GROUP BY merge_id
+) AS C
+ON M._id = C.merge_id
+LEFT JOIN (
+    SELECT manga_id, group_concat(category_id) AS categories
+    FROM mangas_categories
+    GROUP BY manga_id
+) AS MC
+ON MC.manga_id = M._id
+WHERE M.source = 6969;
+
+-- Recreate updatesView with scanlator_filter-based deduplication
+-- NOTE: must update MERGED_SOURCE_ID (6969) here
+DROP VIEW IF EXISTS updatesView;
+CREATE VIEW updatesView AS
+WITH UpdatesFilteredChapters AS (
+    SELECT
+        C.*,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY C.manga_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    LEFT JOIN scanlator_filter SF
+        ON C.manga_id = SF.manga_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON C.manga_id = MWF.manga_id
+),
+MergedUpdatesFilteredChapters AS (
+    SELECT
+        C.*,
+        ME.merge_id,
+        coalesce(SF.excluded, 0) AS filter_excluded,
+        ROW_NUMBER() OVER (
+            PARTITION BY ME.merge_id, C.chapter_number
+            ORDER BY
+                CASE WHEN coalesce(SF.excluded, 0) = 1 THEN 1 ELSE 0 END ASC,
+                coalesce(SF.priority, 10000000) ASC,
+                C._id ASC
+        ) AS rank,
+        CASE WHEN MWF.manga_id IS NOT NULL THEN 1 ELSE 0 END AS has_filter
+    FROM chapters C
+    JOIN merged ME ON ME.manga_id = C.manga_id
+    LEFT JOIN scanlator_filter SF
+        ON SF.manga_id = ME.merge_id
+        AND C.scanlator IS SF.scanlator
+    LEFT JOIN (SELECT DISTINCT manga_id FROM scanlator_filter) MWF
+        ON MWF.manga_id = ME.merge_id
+)
+SELECT
+    mangas._id AS mangaId,
+    mangas.title AS mangaTitle,
+    chapters._id AS chapterId,
+    chapters.name AS chapterName,
+    chapters.scanlator,
+    chapters.url AS chapterUrl,
+    chapters.read,
+    chapters.bookmark,
+    chapters.last_page_read,
+    mangas.source,
+    mangas.favorite,
+    mangas.thumbnail_url AS thumbnailUrl,
+    mangas.cover_last_modified AS coverLastModified,
+    chapters.date_upload AS dateUpload,
+    chapters.date_fetch AS datefetch
+FROM mangas JOIN UpdatesFilteredChapters AS chapters
+ON mangas._id = chapters.manga_id
+WHERE favorite = 1 AND source <> 6969
+AND date_fetch > date_added
+AND (
+    has_filter = 0
+    OR (filter_excluded = 0 AND rank = 1)
+)
+UNION
+SELECT
+    mangas._id AS mangaId,
+    mangas.title AS mangaTitle,
+    chapters._id AS chapterId,
+    chapters.name AS chapterName,
+    chapters.scanlator,
+    chapters.url AS chapterUrl,
+    chapters.read,
+    chapters.bookmark,
+    chapters.last_page_read,
+    mangas.source,
+    mangas.favorite,
+    mangas.thumbnail_url AS thumbnailUrl,
+    mangas.cover_last_modified AS coverLastModified,
+    chapters.date_upload AS dateUpload,
+    chapters.date_fetch AS datefetch
+FROM mangas
+LEFT JOIN (
+    SELECT merged.manga_id, merged.merge_id
+    FROM merged
+    GROUP BY merged.merge_id
+) AS ME
+ON ME.merge_id = mangas._id
+JOIN MergedUpdatesFilteredChapters AS chapters
+ON ME.manga_id = chapters.manga_id AND ME.merge_id = chapters.merge_id
+WHERE favorite = 1 AND source = 6969
+AND date_fetch > date_added
+AND (
+    has_filter = 0
+    OR (filter_excluded = 0 AND rank = 1)
+)
+ORDER BY datefetch DESC;

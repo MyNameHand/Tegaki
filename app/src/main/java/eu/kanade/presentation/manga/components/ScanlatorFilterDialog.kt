@@ -1,127 +1,147 @@
 package eu.kanade.presentation.manga.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
-import androidx.compose.material.icons.rounded.DisabledByDefault
+import androidx.compose.material.icons.outlined.DragHandle
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
-import kotlinx.collections.immutable.ImmutableSet
+import eu.kanade.domain.manga.model.ScanlatorFilter
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.TextButton
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 
+private data class ScanlatorUiModel(val scanlator: String?, val excluded: Boolean)
+
 @Composable
 fun ScanlatorFilterDialog(
-    availableScanlators: ImmutableSet<String>,
-    excludedScanlators: ImmutableSet<String>,
+    availableScanlators: Set<String>,
+    scanlatorFilter: List<ScanlatorFilter>,
     onDismissRequest: () -> Unit,
-    onConfirm: (Set<String>) -> Unit,
+    onConfirm: (List<ScanlatorFilter>) -> Unit,
 ) {
-    val sortedAvailableScanlators = remember(availableScanlators) {
-        availableScanlators.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+    val filteredScanlators = remember(scanlatorFilter) {
+        scanlatorFilter.map { it.scanlator }.toSet()
     }
-    val mutableExcludedScanlators = remember(excludedScanlators) { excludedScanlators.toMutableStateList() }
+    val nonFilteredSorted = remember(availableScanlators, filteredScanlators) {
+        availableScanlators
+            .filterNot { it in filteredScanlators }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+    }
+
+    val items = remember(scanlatorFilter, nonFilteredSorted) {
+        val filtered = scanlatorFilter
+            .sortedBy { it.priority }
+            .map { ScanlatorUiModel(it.scanlator, it.excluded) }
+        val nonFiltered = nonFilteredSorted.map { ScanlatorUiModel(it, false) }
+        (filtered + nonFiltered).toMutableStateList()
+    }
+
+    val lazyListState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        items.apply { add(to.index, removeAt(from.index)) }
+    }
+
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(text = stringResource(MR.strings.exclude_scanlators)) },
+        title = { Text(text = stringResource(MR.strings.filter_scanlators)) },
         text = textFunc@{
-            if (sortedAvailableScanlators.isEmpty()) {
+            if (items.isEmpty()) {
                 Text(text = stringResource(MR.strings.no_scanlators_found))
                 return@textFunc
             }
             Box {
-                val state = rememberLazyListState()
-                LazyColumn(state = state) {
-                    // KMK -->
-                    items(
-                        items = sortedAvailableScanlators,
-                        contentType = { "item" },
-                        key = { it },
-                    ) { scanlator ->
-                        // KMK <--
-                        val isExcluded = mutableExcludedScanlators.contains(scanlator)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clickable {
-                                    if (isExcluded) {
-                                        mutableExcludedScanlators.remove(scanlator)
-                                    } else {
-                                        mutableExcludedScanlators.add(scanlator)
-                                    }
+                ScrollbarLazyColumn(state = lazyListState) {
+                    items(items.size, key = { items[it].scanlator ?: "(unknown)" }) { index ->
+                        val item = items[index]
+                        ReorderableItem(reorderableState, key = item.scanlator ?: "(unknown)") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = MaterialTheme.padding.small),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DragHandle,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .padding(MaterialTheme.padding.small)
+                                        .draggableHandle(),
+                                )
+                                Text(
+                                    text = item.scanlator ?: stringResource(MR.strings.unknown_scanlator),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 8.dp),
+                                )
+                                IconButton(
+                                    onClick = {
+                                        items[index] = item.copy(excluded = !item.excluded)
+                                    },
+                                ) {
+                                    Icon(
+                                        imageVector = if (item.excluded) {
+                                            Icons.Outlined.VisibilityOff
+                                        } else {
+                                            Icons.Outlined.Visibility
+                                        },
+                                        contentDescription = null,
+                                    )
                                 }
-                                .minimumInteractiveComponentSize()
-                                .clip(MaterialTheme.shapes.small)
-                                .fillMaxWidth()
-                                .padding(horizontal = MaterialTheme.padding.small),
-                        ) {
-                            Icon(
-                                imageVector = if (isExcluded) {
-                                    Icons.Rounded.DisabledByDefault
-                                } else {
-                                    Icons.Rounded.CheckBoxOutlineBlank
-                                },
-                                tint = if (isExcluded) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    LocalContentColor.current
-                                },
-                                contentDescription = null,
-                            )
-                            Text(
-                                text = scanlator,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 24.dp),
-                            )
+                            }
                         }
                     }
                 }
-                if (state.canScrollBackward) HorizontalDivider(modifier = Modifier.align(Alignment.TopCenter))
-                if (state.canScrollForward) HorizontalDivider(modifier = Modifier.align(Alignment.BottomCenter))
+                if (lazyListState.canScrollBackward) {
+                    HorizontalDivider(modifier = Modifier.align(Alignment.TopCenter))
+                }
+                if (lazyListState.canScrollForward) {
+                    HorizontalDivider(modifier = Modifier.align(Alignment.BottomCenter))
+                }
             }
         },
         properties = DialogProperties(
             usePlatformDefaultWidth = true,
         ),
         confirmButton = {
-            if (sortedAvailableScanlators.isEmpty()) {
+            if (items.isEmpty()) {
                 TextButton(onClick = onDismissRequest) {
                     Text(text = stringResource(MR.strings.action_cancel))
                 }
             } else {
                 FlowRow {
-                    if (mutableExcludedScanlators.isEmpty()) {
-                        TextButton(onClick = { mutableExcludedScanlators.addAll(availableScanlators) }) {
-                            Text(text = stringResource(MR.strings.action_select_all))
-                        }
-                    } else {
-                        TextButton(onClick = mutableExcludedScanlators::clear) {
-                            Text(text = stringResource(MR.strings.action_reset))
-                        }
+                    TextButton(onClick = {
+                        items.forEachIndexed { index, item -> items[index] = item.copy(excluded = true) }
+                    }) {
+                        Text(text = stringResource(MR.strings.action_select_all))
+                    }
+                    TextButton(onClick = {
+                        items.forEachIndexed { index, item -> items[index] = item.copy(excluded = false) }
+                    }) {
+                        Text(text = stringResource(MR.strings.action_reset))
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(onClick = onDismissRequest) {
@@ -129,7 +149,14 @@ fun ScanlatorFilterDialog(
                     }
                     TextButton(
                         onClick = {
-                            onConfirm(mutableExcludedScanlators.toSet())
+                            val filters = items.mapIndexed { index, item ->
+                                ScanlatorFilter(
+                                    scanlator = item.scanlator,
+                                    priority = index,
+                                    excluded = item.excluded,
+                                )
+                            }
+                            onConfirm(filters)
                             onDismissRequest()
                         },
                     ) {
