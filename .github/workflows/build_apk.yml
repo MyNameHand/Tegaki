@@ -1,5 +1,8 @@
 name: Build APK
-# Manually build an installable (debug-signed) preview APK. No secrets required.
+# Manually build an installable preview APK.
+# If the DEBUG_KEYSTORE_B64 secret is set, all builds are signed with that fixed
+# key so they install as in-place updates over each other. Without it, the build
+# still works but uses an ephemeral debug key (updates require a reinstall).
 
 on:
   workflow_dispatch:
@@ -26,6 +29,18 @@ jobs:
 
       - name: Set up gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore pinned signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "Restored pinned debug keystore for stable signing."
+          else
+            echo "No DEBUG_KEYSTORE_B64 secret set; using an ephemeral debug key."
+          fi
 
       - name: Build preview APK
         run: ./gradlew assemblePreview
