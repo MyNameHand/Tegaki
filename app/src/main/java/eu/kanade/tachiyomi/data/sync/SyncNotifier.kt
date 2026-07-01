@@ -29,7 +29,7 @@ class SyncNotifier(private val context: Context) {
     ) {
         setSmallIcon(R.drawable.ic_stat_tegaki)
         setColor(ContextCompat.getColor(context, R.color.ic_launcher))
-        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
+        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.tegaki))
         setAutoCancel(false)
         setOngoing(true)
         setOnlyAlertOnce(true)
@@ -40,7 +40,7 @@ class SyncNotifier(private val context: Context) {
     ) {
         setSmallIcon(R.drawable.ic_stat_tegaki)
         setColor(ContextCompat.getColor(context, R.color.ic_launcher))
-        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
+        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.tegaki))
         setAutoCancel(false)
     }
 

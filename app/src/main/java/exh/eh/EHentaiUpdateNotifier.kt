@@ -33,7 +33,7 @@ class EHentaiUpdateNotifier(private val context: Context) {
      * Bitmap of the app for notifications.
      */
     private val notificationBitmap by lazy {
-        BitmapFactory.decodeResource(context.resources, R.drawable.komikku)
+        BitmapFactory.decodeResource(context.resources, R.drawable.tegaki)
     }
 
     /**

@@ -24,7 +24,7 @@ internal class AppUpdateNotifier(private val context: Context) {
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_APP_UPDATE) {
         setColor(ContextCompat.getColor(context, R.color.ic_launcher))
-        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
+        setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.tegaki))
     }
 
     /**
