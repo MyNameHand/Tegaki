@@ -1,6 +1,6 @@
 # Komikku — personal fork
 
-A personal fork of [Komikku](https://github.com/komikku-app/komikku), a free and open-source manga reader for Android — which is itself based on [Mihon / Tachiyomi](https://github.com/mihonapp/mihon) and [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY).
+A personal fork of [Komikku](https://github.com/komikku-app/komikku), a free and open-source manga reader for Android — which is itself based on [Mihon](https://github.com/mihonapp/mihon) and [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY).
 
 This fork only exists to add a couple of personal features on top of Komikku. **It is not affiliated with or endorsed by the Komikku project.** For the official app, releases, documentation, and support, please go to [komikku-app/komikku](https://github.com/komikku-app/komikku).
 
@@ -22,7 +22,7 @@ For the full base feature set, see the [upstream Komikku README](https://github.
 All credit for the base app goes to the authors and contributors of
 [Komikku](https://github.com/komikku-app/komikku),
 [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY),
-and [Mihon / Tachiyomi](https://github.com/mihonapp/mihon).
+and [Mihon](https://github.com/mihonapp/mihon).
 
 ## Disclaimer
 
