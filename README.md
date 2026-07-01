@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/readme-images/tegaki-icon.png" width="180" height="180" alt="Tegaki icon"/>
+<img src=".github/readme-images/tegaki-glyph.png" width="160" height="160" alt="Tegaki"/>
 
 # Tegaki
 
