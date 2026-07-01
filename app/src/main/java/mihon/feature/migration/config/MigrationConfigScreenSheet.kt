@@ -159,6 +159,11 @@ fun MigrationConfigScreenSheet(
                     preference = preferences.migrationHideWithoutUpdates(),
                 )
                 // KMK -->
+                MigrationSheetSwitchItem(
+                    title = stringResource(KMR.strings.migrationConfigScreen_hideBehindTitle),
+                    subtitle = stringResource(KMR.strings.migrationConfigScreen_hideBehindSubtitle),
+                    preference = preferences.migrationHideBehind(),
+                )
                 if (fullSettings) {
                     // KMK <--
                     MigrationSheetDividerItem()

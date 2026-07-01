@@ -73,6 +73,7 @@ class MigrationListScreenModel(
     private var hideUnmatched = preferences.migrationHideUnmatched().get()
     private var hideWithoutUpdates = preferences.migrationHideWithoutUpdates().get()
     // KMK -->
+    private var hideBehind = preferences.migrationHideBehind().get()
     private var prioritizeByChapters = preferences.migrationPrioritizeByChapters().get()
     private var deepSearchMode = preferences.migrationDeepSearchMode().get()
     // KMK <--
@@ -209,6 +210,14 @@ class MigrationListScreenModel(
             ) {
                 removeManga(manga)
             }
+            // KMK -->
+            if (result != null &&
+                hideBehind &&
+                (result.second.latestChapter ?: 0.0) < (manga.latestChapter ?: 0.0)
+            ) {
+                removeManga(manga)
+            }
+            // KMK <--
 
             updateMigrationProgress()
         }
@@ -441,6 +450,7 @@ class MigrationListScreenModel(
     fun updateOptions() {
         hideUnmatched = preferences.migrationHideUnmatched().get()
         hideWithoutUpdates = preferences.migrationHideWithoutUpdates().get()
+        hideBehind = preferences.migrationHideBehind().get()
         prioritizeByChapters = preferences.migrationPrioritizeByChapters().get()
         deepSearchMode = preferences.migrationDeepSearchMode().get()
     }
