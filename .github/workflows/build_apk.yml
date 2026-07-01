@@ -35,9 +35,8 @@ jobs:
           DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
         run: |
           if [ -n "$DEBUG_KEYSTORE_B64" ]; then
-            mkdir -p ~/.android
-            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
-            echo "Restored pinned debug keystore for stable signing."
+            echo "$DEBUG_KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/debug.keystore"
+            echo "Restored pinned debug keystore ($(wc -c < "$GITHUB_WORKSPACE/debug.keystore") bytes) for stable signing."
           else
             echo "No DEBUG_KEYSTORE_B64 secret set; using an ephemeral debug key."
           fi

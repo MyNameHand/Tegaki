@@ -22,6 +22,12 @@ if (Config.includeTelemetry) {
 
 shortcutHelper.setFilePath("./shortcuts.xml")
 
+// KMK -->
+// A pinned debug keystore (provided by CI) so preview builds keep a stable
+// signature and install as in-place updates. Absent locally -> AGP default.
+val pinnedDebugKeystore = rootProject.file("debug.keystore")
+// KMK <--
+
 android {
     namespace = "eu.kanade.tachiyomi"
 
@@ -39,6 +45,19 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    // KMK -->
+    signingConfigs {
+        getByName("debug") {
+            if (pinnedDebugKeystore.exists()) {
+                storeFile = pinnedDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+    // KMK <--
 
     buildTypes {
         val debug by getting {
