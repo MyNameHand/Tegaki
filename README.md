@@ -33,6 +33,13 @@ A free and open source manga reader which is based off TachiyomiSY & Mihon/Tachi
 
 <div align="left">
 
+## This fork's added features
+
+This is a personal fork of [Komikku](https://github.com/komikku-app/komikku) with these extra features:
+
+- **Priority-based scanlator filter** — set a per-manga priority order for scanlators so duplicate chapters are deduplicated down to your preferred scanlator's release; scanlators can also be hidden entirely. (Replaces the previous exclude-only system.)
+- **Migration → "Hide entries behind current source"** — when migrating between sources, automatically hides candidate matches whose latest chapter is behind your current source, keeping only equal-or-ahead matches.
+
 ## Features
 
 ### Komikku's unique features:
