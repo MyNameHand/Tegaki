@@ -42,7 +42,7 @@ jobs:
           fi
 
       - name: Build preview APK
-        run: ./gradlew assemblePreview
+        run: ./gradlew assemblePreview -Penable-updater
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

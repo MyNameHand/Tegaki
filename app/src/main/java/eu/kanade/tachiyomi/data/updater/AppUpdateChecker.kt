@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Build
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.util.system.isFossBuildType
-import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import exh.source.ExhPreferences
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.release.interactor.GetApplicationRelease
@@ -36,7 +35,8 @@ class AppUpdateChecker(
             val result = getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    isPreview = isPreviewBuildType || peekIntoPreview,
+                    // Tegaki has a single (stable) release channel, so always compare by SemVer.
+                    isPreview = false,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -82,7 +82,7 @@ class AppUpdateChecker(
             getApplicationRelease.awaitReleaseNotes(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    isPreview = isPreviewBuildType || peekIntoPreview,
+                    isPreview = false,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -95,20 +95,13 @@ class AppUpdateChecker(
 
 val GITHUB_REPO: String by lazy { getGithubRepo() }
 
-fun getGithubRepo(peekIntoPreview: Boolean = false): String =
-    if (isPreviewBuildType || peekIntoPreview) {
-        "komikku-app/komikku-preview"
-    } else {
-        "komikku-app/komikku"
-    }
+// Tegaki pulls updates from its own repository (single stable release channel).
+@Suppress("UNUSED_PARAMETER")
+fun getGithubRepo(peekIntoPreview: Boolean = false): String = "MyNameHand/Tegaki"
 
 val RELEASE_TAG: String by lazy { getReleaseTag() }
 
-fun getReleaseTag(peekIntoPreview: Boolean = false): String =
-    if (isPreviewBuildType || peekIntoPreview) {
-        "r${BuildConfig.COMMIT_COUNT}"
-    } else {
-        "v${BuildConfig.VERSION_NAME}"
-    }
+@Suppress("UNUSED_PARAMETER")
+fun getReleaseTag(peekIntoPreview: Boolean = false): String = "v${BuildConfig.VERSION_NAME}"
 
 val RELEASE_URL = "https://github.com/$GITHUB_REPO/releases/tag/$RELEASE_TAG"

@@ -32,8 +32,12 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.komikku"
+        applicationId = "app.tegaki"
 
+        // Tegaki release discipline: for each new release, bump BOTH versionCode and
+        // versionName, then publish a GitHub release tagged "v<versionName>" (must have
+        // >= 3 numeric parts, e.g. v1.13.7). The in-app updater compares the installed
+        // versionName against the newest release tag on MyNameHand/Tegaki.
         versionCode = 79
         versionName = "1.13.6"
 
@@ -95,14 +99,14 @@ android {
         create("preview") {
             initWith(release)
 
-            applicationIdSuffix = ".beta"
-
-            versionNameSuffix = debug.versionNameSuffix
+            // KMK --> Tegaki ships this as its own standalone app (package app.tegaki,
+            // no .beta suffix, clean version name), presented as a stable release.
             signingConfig = debug.signingConfig
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
+            // KMK <--
         }
         create("benchmark") {
             initWith(release)

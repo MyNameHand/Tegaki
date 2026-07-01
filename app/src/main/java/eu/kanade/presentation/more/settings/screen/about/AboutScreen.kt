@@ -37,7 +37,6 @@ import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.lang.toDateTimestampString
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
-import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
@@ -370,16 +369,8 @@ class AboutScreen : Screen() {
                     }
                 }
 
-                isPreviewBuildType -> {
-                    "Beta r${BuildConfig.COMMIT_COUNT}".let {
-                        if (withBuildDate) {
-                            "$it (${BuildConfig.COMMIT_SHA}, ${getFormattedBuildTime()})"
-                        } else {
-                            "$it (${BuildConfig.COMMIT_SHA})"
-                        }
-                    }
-                }
-
+                // Tegaki presents its (preview-type) builds as a stable release,
+                // e.g. "Stable 1.13.6 (2026-05-19 5:24 PM)".
                 else -> {
                     "Stable ${BuildConfig.VERSION_NAME}".let {
                         if (withBuildDate) {
