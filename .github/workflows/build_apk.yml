@@ -47,5 +47,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Komikku-scanlator-filter-apk
+          name: Tegaki-apk
           path: app/build/outputs/apk/preview/*.apk

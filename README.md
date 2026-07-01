@@ -1,8 +1,8 @@
-# Komikku — personal fork
+# Tegaki
 
-A personal fork of [Komikku](https://github.com/komikku-app/komikku), a free and open-source manga reader for Android — which is itself based on [Mihon](https://github.com/mihonapp/mihon) and [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY).
+**Tegaki** is a personal fork of [Komikku](https://github.com/komikku-app/komikku), a free and open-source manga reader for Android — which is itself based on [Mihon](https://github.com/mihonapp/mihon) and [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY).
 
-This fork only exists to add a couple of personal features on top of Komikku. **It is not affiliated with or endorsed by the Komikku project.** For the official app, releases, documentation, and support, please go to [komikku-app/komikku](https://github.com/komikku-app/komikku).
+It only exists to add a couple of personal features on top of Komikku. **It is not affiliated with or endorsed by the Komikku project.** For the official app, releases, documentation, and support, please go to [komikku-app/komikku](https://github.com/komikku-app/komikku).
 
 > **Note:** The added features in this fork were implemented with AI assistance (Claude Code).
 
