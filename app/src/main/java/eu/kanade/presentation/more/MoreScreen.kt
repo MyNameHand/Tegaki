@@ -233,7 +233,8 @@ fun MoreScreen(
                 TextPreferenceWidget(
                     title = stringResource(MR.strings.label_help),
                     icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                    onPreferenceClick = { uriHandler.openUri(Constants.URL_HELP) },
+                    // Tegaki is a personal fork; point Help at its own repo, not Komikku.
+                    onPreferenceClick = { uriHandler.openUri("https://github.com/MyNameHand/Tegaki") },
                 )
             }
             // KMK -->
