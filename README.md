@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src=".github/readme-images/tegaki-icon.png" width="180" height="180" alt="Tegaki icon"/>
+
 # Tegaki
+
+</div>
 
 **Tegaki** is a personal fork of [Komikku](https://github.com/komikku-app/komikku), a free and open-source manga reader for Android — which is itself based on [Mihon](https://github.com/mihonapp/mihon) and [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY).
 
