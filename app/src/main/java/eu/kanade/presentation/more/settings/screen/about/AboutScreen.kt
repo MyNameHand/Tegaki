@@ -223,6 +223,14 @@ class AboutScreen : Screen() {
 
                 item {
                     TextPreferenceWidget(
+                        title = "Based on Komikku",
+                        subtitle = "A personal fork of Komikku, itself based on TachiyomiSY and Mihon",
+                        onPreferenceClick = { uriHandler.openUri("https://github.com/komikku-app/komikku") },
+                    )
+                }
+
+                item {
+                    TextPreferenceWidget(
                         title = stringResource(MR.strings.help_translate),
                         onPreferenceClick = {
                             uriHandler.openUri(
@@ -236,13 +244,6 @@ class AboutScreen : Screen() {
                     TextPreferenceWidget(
                         title = stringResource(MR.strings.licenses),
                         onPreferenceClick = { navigator.push(OpenSourceLicensesScreen()) },
-                    )
-                }
-
-                item {
-                    TextPreferenceWidget(
-                        title = stringResource(MR.strings.privacy_policy),
-                        onPreferenceClick = { uriHandler.openUri("https://komikku-app.github.io/privacy/") },
                     )
                 }
 
