@@ -150,6 +150,23 @@ object SettingsBrowseScreen : SearchableSettings {
                     ),
                 ),
             ),
+            // KMK --> WebView ad-blocker
+            Preference.PreferenceGroup(
+                title = "Ad-blocker",
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = sourcePreferences.webViewAdblockEnabled(),
+                        title = "Block ads in the WebView",
+                        subtitle = "Blocks ad/tracker requests, popups and redirects in the in-app browser",
+                    ),
+                    Preference.PreferenceItem.EditTextPreference(
+                        preference = sourcePreferences.webViewAdblockFilters(),
+                        title = "Filter lists",
+                        subtitle = "Blocklist URLs, one per line (hosts / domain / EasyList format)",
+                    ),
+                ),
+            ),
+            // KMK <--
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_category_nsfw_content),
                 preferenceItems = persistentListOf(

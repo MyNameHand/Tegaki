@@ -5,6 +5,7 @@ import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,25 +22,19 @@ import java.util.concurrent.TimeUnit
 /**
  * Self-contained network ad-blocker for the in-app WebView.
  *
- * Loads a domain blocklist (hosts / plain-domain / EasyList "||domain^" formats) and:
+ * Loads user-configured domain blocklists (hosts / plain-domain / EasyList "||domain^" formats) and:
  *  - blocks matching sub-resource requests in shouldInterceptRequest, and
  *  - is queried by the WebView client to block navigations/popups to blocked domains.
  *
- * No native engine or external library. Cosmetic element-hiding is intentionally out of scope;
- * popup/redirect suppression is handled in the WebView client itself.
+ * Controlled by preferences: [SourcePreferences.webViewAdblockEnabled] and
+ * [SourcePreferences.webViewAdblockFilters] (one blocklist URL per line). No native engine or
+ * external library; cosmetic element-hiding is intentionally out of scope.
  */
 object WebViewAdblock {
     private val network: NetworkHelper by injectLazy()
+    private val sourcePreferences: SourcePreferences by injectLazy()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // HaGeZi "Pro++" — aggressive ads/tracking/popup/interstitial network list; covers the adult
-    // ad networks (tsyndicate, trafficstars, exosrv, juicyads, adsco.re, …) behind the in-page
-    // interstitials on manga aggregator sites, on top of the popunder networks.
-    private val BLOCKLIST_URLS = listOf(
-        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.plus.txt",
-    )
-    // Bump the suffix whenever the list source changes so the cached copy is refreshed.
-    private const val CACHE_FILE = "webview_adblock_hosts_v2.txt"
     private val CACHE_MAX_AGE_MS = TimeUnit.DAYS.toMillis(4)
 
     @Volatile
@@ -48,37 +43,59 @@ object WebViewAdblock {
     @Volatile
     private var loading = false
 
-    val isReady: Boolean get() = blocked.isNotEmpty()
+    // The filter-URL set that produced [blocked]; used to reload when the user edits the lists.
+    @Volatile
+    private var loadedKey: String = ""
 
-    /** Loads (or refreshes) the blocklist in the background. Safe to call repeatedly. */
+    private fun enabled(): Boolean = sourcePreferences.webViewAdblockEnabled().get()
+
+    private fun filterUrls(): List<String> = sourcePreferences.webViewAdblockFilters().get()
+        .lines()
+        .map { it.trim() }
+        .filter { it.startsWith("http://") || it.startsWith("https://") }
+
+    /** Loads (or refreshes) the configured blocklists in the background. Safe to call repeatedly. */
     fun ensureLoaded(context: Context) {
-        if (blocked.isNotEmpty() || loading) return
+        if (!enabled()) {
+            blocked = emptySet()
+            loadedKey = ""
+            return
+        }
+        val urls = filterUrls()
+        val key = urls.joinToString("\n")
+        if (key.isEmpty()) {
+            blocked = emptySet()
+            loadedKey = ""
+            return
+        }
+        if ((blocked.isNotEmpty() && loadedKey == key) || loading) return
         loading = true
         val appContext = context.applicationContext
         scope.launch {
             try {
-                val cache = File(appContext.filesDir, CACHE_FILE)
+                val cache = File(appContext.filesDir, "webview_adblock_${key.hashCode()}.txt")
                 val fresh = cache.exists() &&
                     System.currentTimeMillis() - cache.lastModified() < CACHE_MAX_AGE_MS
                 val text = if (fresh) {
                     cache.readText()
                 } else {
-                    val downloaded = download()
+                    val downloaded = download(urls)
                     if (downloaded.isNotBlank()) runCatching { cache.writeText(downloaded) }
                     downloaded.ifBlank { if (cache.exists()) cache.readText() else "" }
                 }
                 blocked = parse(text)
-                logcat { "WebView adblock: loaded ${blocked.size} blocked hosts" }
+                loadedKey = key
+                logcat { "WebView adblock: loaded ${blocked.size} blocked hosts from ${urls.size} list(s)" }
             } catch (e: Throwable) {
-                logcat(LogPriority.ERROR, e) { "WebView adblock: failed to load blocklist" }
+                logcat(LogPriority.ERROR, e) { "WebView adblock: failed to load blocklists" }
             } finally {
                 loading = false
             }
         }
     }
 
-    private fun download(): String = buildString {
-        for (url in BLOCKLIST_URLS) {
+    private fun download(urls: List<String>): String = buildString {
+        for (url in urls) {
             runCatching {
                 network.client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
                     if (resp.isSuccessful) {
@@ -113,7 +130,7 @@ object WebViewAdblock {
 
     /** For shouldInterceptRequest: returns an empty response to block a sub-resource, else null. */
     fun shouldIntercept(request: WebResourceRequest): WebResourceResponse? {
-        if (blocked.isEmpty()) return null
+        if (!enabled() || blocked.isEmpty()) return null
         if (request.isForMainFrame) return null
         val host = request.url?.host?.lowercase() ?: return null
         return if (isBlockedHost(host)) blockResponse() else null
@@ -121,7 +138,7 @@ object WebViewAdblock {
 
     /** For shouldOverrideUrlLoading / popup handling: is this URL's host on the blocklist? */
     fun isBlockedUrl(url: String?): Boolean {
-        if (blocked.isEmpty() || url.isNullOrEmpty()) return false
+        if (!enabled() || blocked.isEmpty() || url.isNullOrEmpty()) return false
         val host = runCatching { Uri.parse(url).host }.getOrNull()?.lowercase() ?: return false
         return isBlockedHost(host)
     }
