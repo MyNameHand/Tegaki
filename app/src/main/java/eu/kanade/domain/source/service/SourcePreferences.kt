@@ -41,6 +41,15 @@ class SourcePreferences(
 
     fun showNsfwSource() = preferenceStore.getBoolean("show_nsfw_source", true)
 
+    // KMK --> WebView ad-blocker
+    fun webViewAdblockEnabled() = preferenceStore.getBoolean("webview_adblock_enabled", true)
+
+    fun webViewAdblockFilterUrls() = preferenceStore.getStringSet(
+        "webview_adblock_filter_urls",
+        setOf("https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.plus.txt"),
+    )
+    // KMK <--
+
     fun migrationSortingMode() = preferenceStore.getEnum("pref_migration_sorting", SetMigrateSorting.Mode.ALPHABETICAL)
 
     fun migrationSortingDirection() = preferenceStore.getEnum(

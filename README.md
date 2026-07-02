@@ -20,7 +20,7 @@ Everything Komikku already does, plus:
 
 - **Priority-based scanlator filter** — set a per-manga priority order for scanlators so duplicate chapters are deduplicated down to your preferred scanlator's release; scanlators can also be hidden entirely. (Replaces the previous exclude-only system.)
 - **Migration → "Hide entries behind current source"** — when migrating between sources, automatically hides candidate matches whose latest chapter is behind your current source, keeping only equal-or-ahead matches.
-- **In-app WebView ad-blocker** — blocks ad/tracker requests, popunders, and redirects in the built-in WebView (using the HaGeZi Pro++ blocklist), so browsing ad-heavy source sites is far cleaner. (Network-level blocking; no cosmetic element-hiding.)
+- **In-app WebView ad-blocker** — blocks ad/tracker requests, popunders, and redirects in the built-in WebView (using the HaGeZi Pro++ blocklist), so browsing ad-heavy source sites is far cleaner. Toggle it and manage the filter lists under **Settings → Browse → Ad-blocker**. (Network-level blocking; no cosmetic element-hiding.)
 
 For the full base feature set, see the [upstream Komikku README](https://github.com/komikku-app/komikku#readme).
 

@@ -14,6 +14,7 @@ import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.screen.browse.AdblockFilterListsScreen
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
@@ -150,6 +151,26 @@ object SettingsBrowseScreen : SearchableSettings {
                     ),
                 ),
             ),
+            // KMK --> WebView ad-blocker
+            Preference.PreferenceGroup(
+                title = "Ad-blocker",
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = sourcePreferences.webViewAdblockEnabled(),
+                        title = "Block ads in the WebView",
+                        subtitle = "Blocks ad/tracker requests, popups and redirects in the in-app browser",
+                    ),
+                    run {
+                        val filterUrls by sourcePreferences.webViewAdblockFilterUrls().collectAsState()
+                        Preference.PreferenceItem.TextPreference(
+                            title = "Filter lists",
+                            subtitle = "${filterUrls.size} blocklist(s)",
+                            onClick = { navigator.push(AdblockFilterListsScreen()) },
+                        )
+                    },
+                ),
+            ),
+            // KMK <--
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_category_nsfw_content),
                 preferenceItems = persistentListOf(
