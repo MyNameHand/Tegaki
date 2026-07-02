@@ -35,8 +35,9 @@ class AppUpdateChecker(
             val result = getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    // Tegaki has a single (stable) release channel, so always compare by SemVer.
-                    isPreview = false,
+                    // Test channel (app.tegaki.test) compares by commit count and reads
+                    // prereleases; the stable channel compares by SemVer on full releases.
+                    isPreview = IS_TEST_CHANNEL,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -82,7 +83,7 @@ class AppUpdateChecker(
             getApplicationRelease.awaitReleaseNotes(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    isPreview = false,
+                    isPreview = IS_TEST_CHANNEL,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -93,15 +94,20 @@ class AppUpdateChecker(
     // KMK <--
 }
 
+// Test builds (app.tegaki.test) form a rolling channel keyed by commit count and served from
+// prereleases (tagged "r<commitCount>"); stable builds use SemVer on full releases. Same repo.
+val IS_TEST_CHANNEL: Boolean = BuildConfig.APPLICATION_ID.endsWith(".test")
+
 val GITHUB_REPO: String by lazy { getGithubRepo() }
 
-// Tegaki pulls updates from its own repository (single stable release channel).
+// Tegaki pulls updates from its own repository.
 @Suppress("UNUSED_PARAMETER")
 fun getGithubRepo(peekIntoPreview: Boolean = false): String = "MyNameHand/Tegaki"
 
 val RELEASE_TAG: String by lazy { getReleaseTag() }
 
 @Suppress("UNUSED_PARAMETER")
-fun getReleaseTag(peekIntoPreview: Boolean = false): String = "v${BuildConfig.VERSION_NAME}"
+fun getReleaseTag(peekIntoPreview: Boolean = false): String =
+    if (IS_TEST_CHANNEL) "r${BuildConfig.COMMIT_COUNT}" else "v${BuildConfig.VERSION_NAME}"
 
 val RELEASE_URL = "https://github.com/$GITHUB_REPO/releases/tag/$RELEASE_TAG"

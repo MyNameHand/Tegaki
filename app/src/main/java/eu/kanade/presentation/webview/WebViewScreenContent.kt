@@ -2,8 +2,10 @@ package eu.kanade.presentation.webview
 
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Message
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -45,6 +47,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.webview.WebViewAdblock
 import eu.kanade.tachiyomi.util.system.getHtml
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
@@ -63,6 +66,13 @@ class WebViewWindow(webContent: WebContent, val navigator: WebViewNavigator) {
     constructor(popupMessage: Message, navigator: WebViewNavigator) : this(WebContent.NavigatorOnly, navigator) {
         this.popupMessage = popupMessage
     }
+}
+
+private fun isCrossDomain(current: String?, target: String): Boolean {
+    val c = runCatching { Uri.parse(current).host }.getOrNull()?.lowercase() ?: return false
+    val t = runCatching { Uri.parse(target).host }.getOrNull()?.lowercase() ?: return false
+    fun registrable(host: String) = host.split('.').takeLast(2).joinToString(".")
+    return registrable(c) != registrable(t)
 }
 
 @Composable
@@ -98,6 +108,14 @@ fun WebViewScreenContent(
 
     val webClient = remember {
         object : AccompanistWebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest,
+            ): WebResourceResponse? {
+                return WebViewAdblock.shouldIntercept(request)
+                    ?: super.shouldInterceptRequest(view, request)
+            }
+
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 url?.let {
@@ -130,10 +148,17 @@ fun WebViewScreenContent(
                 view: WebView?,
                 request: WebResourceRequest?,
             ): Boolean {
-                val url = request?.url?.toString() ?: return false
+                val req = request ?: return false
+                val url = req.url?.toString() ?: return false
 
                 // Ignore intents urls
                 if (url.startsWith("intent://")) return true
+
+                // Ad-block: swallow navigations to blocked ad/redirect domains
+                if (WebViewAdblock.isBlockedUrl(url)) return true
+
+                // Ad-block: swallow off-site auto-redirects not triggered by a user gesture
+                if (req.isForMainFrame && !req.hasGesture() && isCrossDomain(view?.url, url)) return true
 
                 // Only open valid web urls
                 if (url.startsWith("http") || url.startsWith("https")) {
@@ -156,11 +181,7 @@ fun WebViewScreenContent(
                 isUserGesture: Boolean,
                 resultMsg: Message,
             ): Boolean {
-                // if it wasn't initiated by a user gesture, we should ignore it like a normal browser would
-                if (isUserGesture) {
-                    windowStack.push(WebViewWindow(resultMsg, WebViewNavigator(coroutineScope)))
-                    return true
-                }
+                // Ad-block: block popups/popunders (window.open) — the main ad vector on source sites.
                 return false
             }
         }
@@ -295,6 +316,9 @@ fun WebViewScreenContent(
                 navigator = navigator,
                 onCreated = { webView ->
                     webView.setDefaultSettings()
+
+                    // WebView ad-block: load blocklists lazily on first WebView use
+                    WebViewAdblock.ensureLoaded(webView.context)
 
                     // Debug mode (chrome://inspect/#devices)
                     if (isDebugBuildType &&

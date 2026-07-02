@@ -342,6 +342,17 @@ class AboutScreen : Screen() {
                     }
                 }
 
+                // Test channel (app.tegaki.test): rolling build identified by commit count.
+                BuildConfig.APPLICATION_ID.endsWith(".test") -> {
+                    "Test r${BuildConfig.COMMIT_COUNT}".let {
+                        if (withBuildDate) {
+                            "$it (${BuildConfig.COMMIT_SHA}, ${getFormattedBuildTime()})"
+                        } else {
+                            "$it (${BuildConfig.COMMIT_SHA})"
+                        }
+                    }
+                }
+
                 // Tegaki presents its (preview-type) builds as a stable release,
                 // e.g. "Stable 1.13.6 (2026-05-19 5:24 PM)".
                 else -> {

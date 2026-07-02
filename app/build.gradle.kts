@@ -38,8 +38,8 @@ android {
         // versionName, then publish a GitHub release tagged "v<versionName>" (must have
         // >= 3 numeric parts, e.g. v1.13.7). The in-app updater compares the installed
         // versionName against the newest release tag on MyNameHand/Tegaki.
-        versionCode = 79
-        versionName = "1.13.6"
+        versionCode = 80
+        versionName = "1.13.7"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
