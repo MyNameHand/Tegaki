@@ -2,6 +2,7 @@ package eu.kanade.presentation.webview
 
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Message
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -65,6 +66,13 @@ class WebViewWindow(webContent: WebContent, val navigator: WebViewNavigator) {
     constructor(popupMessage: Message, navigator: WebViewNavigator) : this(WebContent.NavigatorOnly, navigator) {
         this.popupMessage = popupMessage
     }
+}
+
+private fun isCrossDomain(current: String?, target: String): Boolean {
+    val c = runCatching { Uri.parse(current).host }.getOrNull()?.lowercase() ?: return false
+    val t = runCatching { Uri.parse(target).host }.getOrNull()?.lowercase() ?: return false
+    fun registrable(host: String) = host.split('.').takeLast(2).joinToString(".")
+    return registrable(c) != registrable(t)
 }
 
 @Composable
@@ -140,10 +148,17 @@ fun WebViewScreenContent(
                 view: WebView?,
                 request: WebResourceRequest?,
             ): Boolean {
-                val url = request?.url?.toString() ?: return false
+                val req = request ?: return false
+                val url = req.url?.toString() ?: return false
 
                 // Ignore intents urls
                 if (url.startsWith("intent://")) return true
+
+                // Ad-block: swallow navigations to blocked ad/redirect domains
+                if (WebViewAdblock.isBlockedUrl(url)) return true
+
+                // Ad-block: swallow off-site auto-redirects not triggered by a user gesture
+                if (req.isForMainFrame && !req.hasGesture() && isCrossDomain(view?.url, url)) return true
 
                 // Only open valid web urls
                 if (url.startsWith("http") || url.startsWith("https")) {
@@ -166,11 +181,7 @@ fun WebViewScreenContent(
                 isUserGesture: Boolean,
                 resultMsg: Message,
             ): Boolean {
-                // if it wasn't initiated by a user gesture, we should ignore it like a normal browser would
-                if (isUserGesture) {
-                    windowStack.push(WebViewWindow(resultMsg, WebViewNavigator(coroutineScope)))
-                    return true
-                }
+                // Ad-block: block popups/popunders (window.open) — the main ad vector on source sites.
                 return false
             }
         }

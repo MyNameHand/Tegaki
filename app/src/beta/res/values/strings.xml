@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-  webview-adblock TEST branch only: override the launcher/app label so this build
-  (package app.tegaki.test) is distinguishable from the stable app.tegaki install.
--->
-<resources>
-    <string name="app_name" translatable="false">Tegaki Test</string>
-</resources>

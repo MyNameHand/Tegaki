@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.webview
 
 import android.content.Context
+import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -18,20 +19,23 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Lightweight, self-contained network ad-blocker for the in-app WebView.
+ * Self-contained network ad-blocker for the in-app WebView.
  *
- * Loads domain blocklists (plain-domain / hosts / EasyList "||domain^" formats) and blocks matching
- * sub-resource requests in [android.webkit.WebViewClient.shouldInterceptRequest]. No native engine
- * or external library — just request-level blocking, which is what kills the popups/redirects on
- * manga source sites. Cosmetic element-hiding is intentionally out of scope.
+ * Loads a domain blocklist (hosts / plain-domain / EasyList "||domain^" formats) and:
+ *  - blocks matching sub-resource requests in shouldInterceptRequest, and
+ *  - is queried by the WebView client to block navigations/popups to blocked domains.
+ *
+ * No native engine or external library. Cosmetic element-hiding is intentionally out of scope;
+ * popup/redirect suppression is handled in the WebView client itself.
  */
 object WebViewAdblock {
     private val network: NetworkHelper by injectLazy()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Peter Lowe's ad/tracking server list — the same list used as "plowe-0" in uBlock Origin.
+    // HaGeZi "Pro" — comprehensive ads/tracking/popup network list (covers exoclick, popads,
+    // propellerads, adsterra, etc. that power the popunders on manga aggregator sites).
     private val BLOCKLIST_URLS = listOf(
-        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=nohtml&showintro=0&mimetype=plaintext",
+        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt",
     )
     private const val CACHE_FILE = "webview_adblock_hosts.txt"
     private val CACHE_MAX_AGE_MS = TimeUnit.DAYS.toMillis(4)
@@ -42,7 +46,9 @@ object WebViewAdblock {
     @Volatile
     private var loading = false
 
-    /** Loads (or refreshes) the blocklists in the background. Safe to call repeatedly. */
+    val isReady: Boolean get() = blocked.isNotEmpty()
+
+    /** Loads (or refreshes) the blocklist in the background. Safe to call repeatedly. */
     fun ensureLoaded(context: Context) {
         if (blocked.isNotEmpty() || loading) return
         loading = true
@@ -62,7 +68,7 @@ object WebViewAdblock {
                 blocked = parse(text)
                 logcat { "WebView adblock: loaded ${blocked.size} blocked hosts" }
             } catch (e: Throwable) {
-                logcat(LogPriority.ERROR, e) { "WebView adblock: failed to load blocklists" }
+                logcat(LogPriority.ERROR, e) { "WebView adblock: failed to load blocklist" }
             } finally {
                 loading = false
             }
@@ -83,19 +89,16 @@ object WebViewAdblock {
     }
 
     private fun parse(text: String): Set<String> {
-        val set = HashSet<String>(1 shl 14)
+        val set = HashSet<String>(1 shl 19)
         text.lineSequence().forEach { raw ->
             val line = raw.trim()
             if (line.isEmpty() || line.startsWith("#") || line.startsWith("!")) return@forEach
             val host = when {
-                // EasyList network rule: ||domain^  (skip ones with wildcards/paths/options)
                 line.startsWith("||") ->
                     line.removePrefix("||").substringBefore('^').substringBefore('/')
                         .takeIf { it.isNotEmpty() && '*' !in it && '.' in it }
-                // hosts format: "0.0.0.0 domain" / "127.0.0.1 domain"
                 line.startsWith("0.0.0.0 ") || line.startsWith("127.0.0.1 ") ->
                     line.substringAfter(' ').trim().substringBefore(' ').substringBefore('#')
-                // plain domain, one per line
                 ' ' !in line && '.' in line && '/' !in line -> line
                 else -> null
             }?.lowercase()?.removePrefix("www.")
@@ -106,15 +109,22 @@ object WebViewAdblock {
         return set
     }
 
-    /** Returns an empty response to block the request, or null to let it through. */
+    /** For shouldInterceptRequest: returns an empty response to block a sub-resource, else null. */
     fun shouldIntercept(request: WebResourceRequest): WebResourceResponse? {
         if (blocked.isEmpty()) return null
-        if (request.isForMainFrame) return null // never block the page the user navigated to
+        if (request.isForMainFrame) return null
         val host = request.url?.host?.lowercase() ?: return null
-        return if (isBlocked(host)) blockResponse() else null
+        return if (isBlockedHost(host)) blockResponse() else null
     }
 
-    private fun isBlocked(host: String): Boolean {
+    /** For shouldOverrideUrlLoading / popup handling: is this URL's host on the blocklist? */
+    fun isBlockedUrl(url: String?): Boolean {
+        if (blocked.isEmpty() || url.isNullOrEmpty()) return false
+        val host = runCatching { Uri.parse(url).host }.getOrNull()?.lowercase() ?: return false
+        return isBlockedHost(host)
+    }
+
+    private fun isBlockedHost(host: String): Boolean {
         var h = host
         while (h.contains('.')) {
             if (h in blocked) return true
