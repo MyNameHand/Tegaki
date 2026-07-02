@@ -32,12 +32,14 @@ object WebViewAdblock {
     private val network: NetworkHelper by injectLazy()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // HaGeZi "Pro" — comprehensive ads/tracking/popup network list (covers exoclick, popads,
-    // propellerads, adsterra, etc. that power the popunders on manga aggregator sites).
+    // HaGeZi "Pro++" — aggressive ads/tracking/popup/interstitial network list; covers the adult
+    // ad networks (tsyndicate, trafficstars, exosrv, juicyads, adsco.re, …) behind the in-page
+    // interstitials on manga aggregator sites, on top of the popunder networks.
     private val BLOCKLIST_URLS = listOf(
-        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt",
+        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.plus.txt",
     )
-    private const val CACHE_FILE = "webview_adblock_hosts.txt"
+    // Bump the suffix whenever the list source changes so the cached copy is refreshed.
+    private const val CACHE_FILE = "webview_adblock_hosts_v2.txt"
     private val CACHE_MAX_AGE_MS = TimeUnit.DAYS.toMillis(4)
 
     @Volatile
