@@ -4,6 +4,7 @@ import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.os.Message
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -45,6 +46,7 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.webview.WebViewAdblock
 import eu.kanade.tachiyomi.util.system.getHtml
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
@@ -98,8 +100,17 @@ fun WebViewScreenContent(
 
     val webClient = remember {
         object : AccompanistWebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest,
+            ): WebResourceResponse? {
+                return WebViewAdblock.shouldIntercept(view, request)
+                    ?: super.shouldInterceptRequest(view, request)
+            }
+
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                WebViewAdblock.performScript(view, url)
                 url?.let {
                     currentUrl = it
                     onUrlChange(it)
@@ -295,6 +306,10 @@ fun WebViewScreenContent(
                 navigator = navigator,
                 onCreated = { webView ->
                     webView.setDefaultSettings()
+
+                    // WebView ad-block PoC: init lazily here so any native issue stays in the WebView flow
+                    WebViewAdblock.ensureInit(webView.context)
+                    WebViewAdblock.setupWebView(webView)
 
                     // Debug mode (chrome://inspect/#devices)
                     if (isDebugBuildType &&

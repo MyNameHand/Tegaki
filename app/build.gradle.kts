@@ -323,6 +323,8 @@ dependencies {
     implementation(libs.haze)
     implementation(compose.colorpicker)
     implementation(projects.flagkit)
+    // WebView ad-block PoC (brave/ad-block engine, EasyList-compatible)
+    implementation("com.github.Edsuns.AdblockAndroid:ad-filter:1.0")
     // KMK <--
 
     // Logging
