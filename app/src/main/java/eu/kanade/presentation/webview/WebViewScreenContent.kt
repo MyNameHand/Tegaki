@@ -104,13 +104,12 @@ fun WebViewScreenContent(
                 view: WebView,
                 request: WebResourceRequest,
             ): WebResourceResponse? {
-                return WebViewAdblock.shouldIntercept(view, request)
+                return WebViewAdblock.shouldIntercept(request)
                     ?: super.shouldInterceptRequest(view, request)
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                WebViewAdblock.performScript(view, url)
                 url?.let {
                     currentUrl = it
                     onUrlChange(it)
@@ -307,9 +306,8 @@ fun WebViewScreenContent(
                 onCreated = { webView ->
                     webView.setDefaultSettings()
 
-                    // WebView ad-block PoC: init lazily here so any native issue stays in the WebView flow
-                    WebViewAdblock.ensureInit(webView.context)
-                    WebViewAdblock.setupWebView(webView)
+                    // WebView ad-block: load blocklists lazily on first WebView use
+                    WebViewAdblock.ensureLoaded(webView.context)
 
                     // Debug mode (chrome://inspect/#devices)
                     if (isDebugBuildType &&
