@@ -14,6 +14,7 @@ import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.screen.browse.AdblockFilterListsScreen
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
@@ -159,11 +160,14 @@ object SettingsBrowseScreen : SearchableSettings {
                         title = "Block ads in the WebView",
                         subtitle = "Blocks ad/tracker requests, popups and redirects in the in-app browser",
                     ),
-                    Preference.PreferenceItem.EditTextPreference(
-                        preference = sourcePreferences.webViewAdblockFilters(),
-                        title = "Filter lists",
-                        subtitle = "Blocklist URLs, one per line (hosts / domain / EasyList format)",
-                    ),
+                    run {
+                        val filterUrls by sourcePreferences.webViewAdblockFilterUrls().collectAsState()
+                        Preference.PreferenceItem.TextPreference(
+                            title = "Filter lists",
+                            subtitle = "${filterUrls.size} blocklist(s)",
+                            onClick = { navigator.push(AdblockFilterListsScreen()) },
+                        )
+                    },
                 ),
             ),
             // KMK <--

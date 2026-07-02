@@ -49,10 +49,10 @@ object WebViewAdblock {
 
     private fun enabled(): Boolean = sourcePreferences.webViewAdblockEnabled().get()
 
-    private fun filterUrls(): List<String> = sourcePreferences.webViewAdblockFilters().get()
-        .lines()
+    private fun filterUrls(): List<String> = sourcePreferences.webViewAdblockFilterUrls().get()
         .map { it.trim() }
         .filter { it.startsWith("http://") || it.startsWith("https://") }
+        .sorted()
 
     /** Loads (or refreshes) the configured blocklists in the background. Safe to call repeatedly. */
     fun ensureLoaded(context: Context) {

@@ -44,9 +44,9 @@ class SourcePreferences(
     // KMK --> WebView ad-blocker
     fun webViewAdblockEnabled() = preferenceStore.getBoolean("webview_adblock_enabled", true)
 
-    fun webViewAdblockFilters() = preferenceStore.getString(
-        "webview_adblock_filters",
-        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.plus.txt",
+    fun webViewAdblockFilterUrls() = preferenceStore.getStringSet(
+        "webview_adblock_filter_urls",
+        setOf("https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.plus.txt"),
     )
     // KMK <--
 
