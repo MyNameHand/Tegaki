@@ -92,7 +92,8 @@ SELECT
     C.date_upload,
     C.last_modified_at,
     C.version,
-    C.is_syncing
+    C.is_syncing,
+    C.memo
 FROM FilteredChapters C
 -- KMK -->
 JOIN mangas M ON C.manga_id = M._id
@@ -168,7 +169,8 @@ SELECT
     FC.date_upload,
     FC.last_modified_at,
     FC.version,
-    FC.is_syncing
+    FC.is_syncing,
+    FC.memo
 FROM FilteredChapters FC
 -- KMK -->
 JOIN mangas MA ON MA._id = :mangaId
