@@ -148,6 +148,9 @@ android {
 
             // KMK --> Tegaki ships this as its own standalone app (package app.tegaki,
             // no .beta suffix, clean version name), presented as a stable release.
+            // TEST channel: use a .test package so this build installs alongside
+            // the stable app.tegaki build instead of replacing it.
+            applicationIdSuffix = ".test"
             // Signed with the real Tegaki key when keystore.properties / RELEASE_KEYSTORE_* are
             // present; otherwise falls back to the pinned debug keystore so builds still work.
             signingConfig = if (hasReleaseSigning) {
