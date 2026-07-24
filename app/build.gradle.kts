@@ -38,8 +38,9 @@ android {
         // versionName, then publish a GitHub release tagged "v<versionName>" (must have
         // >= 3 numeric parts, e.g. v1.13.7). The in-app updater compares the installed
         // versionName against the newest release tag on MyNameHand/Tegaki.
-        versionCode = 81
-        versionName = "1.13.8"
+        // Tegaki versioning tracks the merged Komikku stable base (1.14.1) + fork bump.
+        versionCode = 82
+        versionName = "1.14.2"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")

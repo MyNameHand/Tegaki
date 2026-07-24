@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 import exh.EXHMigrations
 import exh.source.MERGED_SOURCE_ID
 import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.MemoColumnAdapter
 import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.data.manga.MangaMapper
 import tachiyomi.data.manga.MergedMangaMapper
@@ -172,6 +173,7 @@ class MangaRestorer(
                 version = manga.version,
                 isSyncing = 1,
                 notes = manga.notes,
+                memo = manga.memo.let(MemoColumnAdapter::encode),
             )
         }
         return manga
@@ -269,6 +271,7 @@ class MangaRestorer(
                     chapter.dateFetch,
                     chapter.dateUpload,
                     chapter.version,
+                    chapter.memo,
                 )
             }
         }
@@ -294,6 +297,7 @@ class MangaRestorer(
                     chapterId = chapter.id,
                     version = chapter.version,
                     isSyncing = 1,
+                    memo = chapter.memo.let(MemoColumnAdapter::encode),
                 )
             }
         }
@@ -330,6 +334,7 @@ class MangaRestorer(
                 updateStrategy = manga.updateStrategy,
                 version = manga.version,
                 notes = manga.notes,
+                memo = manga.memo,
             )
             mangasQueries.selectLastInsertedRowId()
         }
