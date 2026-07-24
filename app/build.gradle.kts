@@ -102,6 +102,9 @@ android {
 
             // KMK --> Tegaki ships this as its own standalone app (package app.tegaki,
             // no .beta suffix, clean version name), presented as a stable release.
+            // TEST channel: use a .test package so this build installs alongside
+            // the stable app.tegaki build instead of replacing it.
+            applicationIdSuffix = ".test"
             signingConfig = debug.signingConfig
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
