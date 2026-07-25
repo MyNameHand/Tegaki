@@ -8,8 +8,15 @@ CREATE TABLE scanlator_filter(
 
 CREATE INDEX scanlator_filter_manga_id_index ON scanlator_filter(manga_id);
 
+-- A plain UNIQUE(manga_id, scanlator) would not help: SQLite treats NULLs as distinct, and a
+-- NULL scanlator (source provides none) is exactly the case that used to duplicate. Collapsing
+-- NULL to '' in the index makes one row per manga+scanlator a hard guarantee, which also keeps
+-- the `C.scanlator IS SF.scanlator` joins from fanning chapters out into N copies.
+CREATE UNIQUE INDEX scanlator_filter_manga_scanlator_unique
+ON scanlator_filter(manga_id, ifnull(scanlator, ''));
+
 insert:
-INSERT INTO scanlator_filter(manga_id, scanlator, priority, excluded)
+INSERT OR REPLACE INTO scanlator_filter(manga_id, scanlator, priority, excluded)
 VALUES (:mangaId, :scanlator, :priority, :excluded);
 
 deleteForManga:

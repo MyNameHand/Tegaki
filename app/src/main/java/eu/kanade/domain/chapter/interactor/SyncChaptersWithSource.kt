@@ -252,8 +252,13 @@ class SyncChaptersWithSource(
         // Note that last_update actually represents last time the chapter list changed at all
         updateManga.awaitUpdateLastUpdate(manga.id)
 
-        // Sync scanlator filter: add new scanlators discovered in this sync
-        val currentScanlators = chapterRepository.getScanlatorsByMangaId(manga.id).toSet()
+        // Sync scanlator filter: add new scanlators discovered in this sync.
+        // The repository maps a NULL scanlator to "", while SetScanlatorFilter stores "" back
+        // as NULL, so normalise to NULL here or the diff below never converges and appends a
+        // duplicate NULL row on every sync.
+        val currentScanlators = chapterRepository.getScanlatorsByMangaId(manga.id)
+            .map { it.takeUnless(String::isEmpty) }
+            .toSet()
         val existingFilter = getScanlatorFilter.await(manga.id)
         val existingScanlators = existingFilter.map { it.scanlator }.toSet()
         val newScanlators = currentScanlators - existingScanlators

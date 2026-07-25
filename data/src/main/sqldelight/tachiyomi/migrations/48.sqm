@@ -1,0 +1,18 @@
+-- Repair duplicate scanlator_filter rows and make them impossible going forward.
+--
+-- Chapters with no scanlator store NULL, but ChapterRepositoryImpl surfaced that as "" while
+-- SetScanlatorFilter wrote "" back as NULL. The "new scanlators" diff in SyncChaptersWithSource
+-- therefore never converged and appended one more NULL row per library update. Those duplicates
+-- then multiplied chapters in every `C.scanlator IS SF.scanlator` join (NULL IS NULL is true),
+-- which inflated backups by a factor equal to the number of duplicate rows.
+
+-- Keep the earliest row per (manga, scanlator) — that is the original, lowest-priority entry.
+DELETE FROM scanlator_filter
+WHERE rowid NOT IN (
+    SELECT min(rowid)
+    FROM scanlator_filter
+    GROUP BY manga_id, ifnull(scanlator, '')
+);
+
+CREATE UNIQUE INDEX scanlator_filter_manga_scanlator_unique
+ON scanlator_filter(manga_id, ifnull(scanlator, ''));
