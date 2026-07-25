@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.backup.models
 
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.core.common.extensions.JsonObjectEmptyBytes
 import tachiyomi.data.MemoColumnAdapter
@@ -46,11 +47,12 @@ class BackupManga(
     @ProtoNumber(109) var version: Long = 0,
     @ProtoNumber(110) var notes: String = "",
     @ProtoNumber(111) var initialized: Boolean = false,
-    // Tegaki: 112 was claimed by scanlatorFilters before upstream used it for memo.
-    // Keep 112 so existing Tegaki backups restore correctly; memo diverges to 113.
-    // (Komikku >= 1.14.0 backups store memo at 112 and won't round-trip it here.)
-    @ProtoNumber(112) var scanlatorFilters: List<BackupScanlatorFilter> = emptyList(),
-    @ProtoNumber(113) var memo: ByteArray = JsonObjectEmptyBytes,
+    @ProtoNumber(112) var memo: ByteArray = JsonObjectEmptyBytes,
+
+    // Tegaki-specific values live in the 900+ range so upstream's sequential
+    // numbering can never collide with them. (scanlatorFilters briefly occupied
+    // 112 in backups made by Tegaki <= 1.14.2; those restore without filters.)
+    @ProtoNumber(900) var scanlatorFilters: List<BackupScanlatorFilter> = emptyList(),
 
     // SY specific values
     @ProtoNumber(600) var mergedMangaReferences: List<BackupMergedMangaReference> = emptyList(),
@@ -90,7 +92,10 @@ class BackupManga(
             version = this@BackupManga.version,
             notes = this@BackupManga.notes,
             initialized = this@BackupManga.initialized,
-            memo = MemoColumnAdapter.decode(this@BackupManga.memo),
+            // Tegaki: tolerate non-JSON bytes at field 112 — backups made by
+            // Tegaki <= 1.14.2 stored scanlator filters there, not memo JSON.
+            memo = runCatching { MemoColumnAdapter.decode(this@BackupManga.memo) }
+                .getOrDefault(JsonObject(emptyMap())),
         )
     }
 }
