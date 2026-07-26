@@ -252,19 +252,37 @@ class SyncChaptersWithSource(
         // Note that last_update actually represents last time the chapter list changed at all
         updateManga.awaitUpdateLastUpdate(manga.id)
 
-        // Sync scanlator filter: add new scanlators discovered in this sync.
-        // The repository maps a NULL scanlator to "", while SetScanlatorFilter stores "" back
-        // as NULL, so normalise to NULL here or the diff below never converges and appends a
-        // duplicate NULL row on every sync.
+        // Sync scanlator filter: drop scanlators the source no longer publishes, then append any
+        // newly discovered ones.
+        //
+        // The repository maps a NULL scanlator to "", while SetScanlatorFilter stores "" back as
+        // NULL, so normalise both sides or the diff never converges and appends a duplicate NULL
+        // row on every sync.
         val currentScanlators = chapterRepository.getScanlatorsByMangaId(manga.id)
             .map { it.takeUnless(String::isEmpty) }
             .toSet()
         val existingFilter = getScanlatorFilter.await(manga.id)
-        val existingScanlators = existingFilter.map { it.scanlator }.toSet()
-        val newScanlators = currentScanlators - existingScanlators
-        if (newScanlators.isNotEmpty()) {
-            val maxPriority = existingFilter.maxOfOrNull { it.priority } ?: 0
-            val updatedFilter = existingFilter + newScanlators.mapIndexed { index, scanlator ->
+
+        // Prune rows whose scanlator has disappeared from the chapter list, so the filter does not
+        // accumulate groups that no longer release for this entry. Deliberately hidden scanlators
+        // are kept regardless: a source dropping a group temporarily (outage, partial fetch, site
+        // reshuffle) must not silently un-hide it when the group comes back. A stale excluded row
+        // costs nothing, whereas a lost exclusion is a preference the user has to notice and redo.
+        val validFilter = existingFilter.filter { it.excluded || it.scanlator in currentScanlators }
+
+        // Rank newly discovered scanlators by how much they publish, then by how recently, so the
+        // most prolific and most current group lands nearest the top of the priority order.
+        val chapterCounts = (dbChapters + updatedToAdd)
+            .groupBy { it.scanlator?.takeUnless(String::isEmpty) }
+        val newScanlators = (currentScanlators - validFilter.map { it.scanlator }.toSet())
+            .sortedWith(
+                compareByDescending<String?> { chapterCounts[it]?.size ?: 0 }
+                    .thenByDescending { chapterCounts[it]?.maxOfOrNull { chapter -> chapter.dateUpload } ?: 0L },
+            )
+
+        if (validFilter.size != existingFilter.size || newScanlators.isNotEmpty()) {
+            val maxPriority = validFilter.maxOfOrNull { it.priority } ?: -1
+            val updatedFilter = validFilter + newScanlators.mapIndexed { index, scanlator ->
                 ScanlatorFilter(scanlator = scanlator, priority = maxPriority + index + 1, excluded = false)
             }
             setScanlatorFilter.await(manga.id, updatedFilter)
