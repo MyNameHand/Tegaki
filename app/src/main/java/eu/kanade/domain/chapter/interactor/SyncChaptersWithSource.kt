@@ -264,8 +264,11 @@ class SyncChaptersWithSource(
         val existingFilter = getScanlatorFilter.await(manga.id)
 
         // Prune rows whose scanlator has disappeared from the chapter list, so the filter does not
-        // accumulate groups that no longer release for this entry.
-        val validFilter = existingFilter.filter { it.scanlator in currentScanlators }
+        // accumulate groups that no longer release for this entry. Deliberately hidden scanlators
+        // are kept regardless: a source dropping a group temporarily (outage, partial fetch, site
+        // reshuffle) must not silently un-hide it when the group comes back. A stale excluded row
+        // costs nothing, whereas a lost exclusion is a preference the user has to notice and redo.
+        val validFilter = existingFilter.filter { it.excluded || it.scanlator in currentScanlators }
 
         // Rank newly discovered scanlators by how much they publish, then by how recently, so the
         // most prolific and most current group lands nearest the top of the priority order.
