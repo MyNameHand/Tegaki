@@ -18,7 +18,7 @@ It only exists to add a couple of personal features on top of Komikku. **It is n
 
 Everything Komikku already does, plus:
 
-- **Priority-based scanlator filter** — set a per-manga priority order for scanlators so duplicate chapters are deduplicated down to your preferred scanlator's release; scanlators can also be hidden entirely. (Replaces the previous exclude-only system.) Based on [@AwkwardPeak7](https://github.com/AwkwardPeak7)'s unmerged Mihon PR [#2828](https://github.com/mihonapp/mihon/pull/2828).
+- **Priority-based scanlator filter** — set a per-manga priority order for scanlators so duplicate chapters are deduplicated down to your preferred scanlator's release; scanlators can also be hidden entirely. (Replaces the previous exclude-only system.) Based on [@AwkwardPeak7](https://github.com/AwkwardPeak7)'s Mihon PR [#2828](https://github.com/mihonapp/mihon/pull/2828).
 - **Migration → "Hide entries behind current source"** — when migrating between sources, automatically hides candidate matches whose latest chapter is behind your current source, keeping only equal-or-ahead matches.
 - **In-app WebView ad-blocker** — blocks ad/tracker requests, popunders, and redirects in the built-in WebView (using the HaGeZi Pro++ blocklist), so browsing ad-heavy source sites is far cleaner. Toggle it and manage the filter lists under **Settings → Browse → Ad-blocker**. (Network-level blocking; no cosmetic element-hiding.)
 
