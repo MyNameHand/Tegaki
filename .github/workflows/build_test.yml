@@ -1,0 +1,103 @@
+name: Test Builder
+# Builds and publishes a rolling soak build from the `test` branch as a pre-release.
+#
+# Same signing path as the stable release workflow, so a test build and a stable build carry
+# an identical certificate and install over one another. The `test` branch carries the channel
+# identity commit (.test application id suffix + teal icon), so this installs alongside stable
+# rather than replacing it.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish test build
+    runs-on: 'ubuntu-24.04'
+
+    steps:
+      - name: Clone repository (test branch)
+        uses: actions/checkout@v4
+        with:
+          ref: test
+          fetch-depth: 0
+
+      - name: Derive rolling tag
+        id: tag
+        run: |
+          set -e
+          COUNT=$(git rev-list --count HEAD)
+          echo "TAG=r$COUNT" >> $GITHUB_OUTPUT
+          echo "VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)" >> $GITHUB_OUTPUT
+
+      - name: Verify this is the test channel
+        run: |
+          set -e
+          if ! grep -q 'applicationIdSuffix = ".test"' app/build.gradle.kts; then
+            echo "::error::test branch is missing the channel identity commit — a build from it would replace the stable app"
+            exit 1
+          fi
+          echo "Channel identity present"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check code format
+        run: ./gradlew spotlessCheck
+
+      - name: Build signed APKs
+        run: ./gradlew assemblePreview -Penable-updater
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+
+      - name: Verify signing and package id
+        run: |
+          set -e
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -r | head -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -r | head -1)
+          APK=app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
+          "$AAPT" dump badging "$APK" | head -1
+          "$AAPT" dump badging "$APK" | head -1 | grep -q "name='app.tegaki.test'" \
+            || { echo "::error::package id is not app.tegaki.test"; exit 1; }
+          if "$APKSIGNER" verify --print-certs "$APK" | grep -q 'CN=Android Debug'; then
+            echo "::error::Signed with the debug keystore — release secrets are missing or wrong"
+            exit 1
+          fi
+
+      - name: Rename APKs
+        run: |
+          set -e
+          cd app/build/outputs/apk/preview
+          mv app-arm64-v8a-preview.apk Tegaki-Test-arm64-v8a.apk
+          mv app-universal-preview.apk Tegaki-Test-universal.apk
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          target_commitish: test
+          name: Tegaki Test ${{ steps.tag.outputs.TAG }}
+          draft: true
+          prerelease: true
+          body: |
+            **Tegaki Test ${{ steps.tag.outputs.TAG }}** — rolling test build (`app.tegaki.test`, teal icon, installs alongside stable).
+
+            Built from `test` at version ${{ steps.tag.outputs.VERSION }}.
+          files: |
+            app/build/outputs/apk/preview/Tegaki-Test-arm64-v8a.apk
+            app/build/outputs/apk/preview/Tegaki-Test-universal.apk
