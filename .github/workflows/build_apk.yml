@@ -30,19 +30,16 @@ jobs:
       - name: Set up gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Restore pinned signing key
-        env:
-          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
-        run: |
-          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
-            echo "$DEBUG_KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/debug.keystore"
-            echo "Restored pinned debug keystore ($(wc -c < "$GITHUB_WORKSPACE/debug.keystore") bytes) for stable signing."
-          else
-            echo "No DEBUG_KEYSTORE_B64 secret set; using an ephemeral debug key."
-          fi
-
       - name: Build preview APK
+        # Signed with the same release key as the published channels, so an APK from here can
+        # update a real install. Signing with the old debug key here would silently produce
+        # APKs that refuse to install over anything the release workflows built.
         run: ./gradlew assemblePreview -Penable-updater
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
