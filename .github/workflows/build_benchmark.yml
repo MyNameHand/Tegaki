@@ -1,107 +1,62 @@
 name: Benchmark Builder
-# Manually build a benchmark on a tag
+# Manually build the benchmark variant for performance testing on a device.
+#
+# The benchmark build type uses applicationId app.tegaki.benchmark, so it installs alongside
+# stable and test. It is a throwaway dev artifact that is never published, so it is signed with
+# whatever debug key the runner generates — no release secrets are involved. The macrobenchmark
+# tests themselves need a physical device, so this only produces the APK to run them against.
 
 on:
-  # Dispatch or Manual triggers
   workflow_dispatch:
-
-#  push:
-#    branches:
-#      - dev-benchmark
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  prepare-build:
+  build:
+    name: Build benchmark APK
     runs-on: 'ubuntu-24.04'
-    outputs:
-      VERSION_TAG: ${{ steps.get_tag.outputs.VERSION_TAG }}
-      ARTIFACTS_PREFIX: benchmark/app
-      TAG_NAME: benchmark-${{ steps.tag_name.outputs.TAG_NAME }}
+
     steps:
-      - name: Get tag name (${{ github.ref }})
-        id: get_tag
-        run: |
-          version_tag=$(echo ${GITHUB_REF/refs\/tags\//} | sed -r 's/^refs\/(heads|tags)\///' | sed -r 's/[-\/]+/_/g')
-          echo "VERSION_TAG=$version_tag"
-          echo "VERSION_TAG=$version_tag" >> $GITHUB_OUTPUT
-
-      - name: Clone Repository (${{ steps.get_tag.outputs.VERSION_TAG }})
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-
-      - name: Prepare env
-        id: prepare_env
-        run: |
-          commit_count=$(git rev-list --count HEAD)
-          echo "COMMIT_COUNT=$commit_count"
-          echo "COMMIT_COUNT=$commit_count" >> $GITHUB_OUTPUT
-
-      - name: Tag name
-        id: tag_name
-        run: |
-          if [ "${{ steps.get_tag.outputs.VERSION_TAG }}" = "master" ]; then
-            tag_name=${{ steps.get_tag.outputs.VERSION_TAG }}-r${{ steps.prepare_env.outputs.COMMIT_COUNT }}
-            else
-            tag_name=${{ steps.get_tag.outputs.VERSION_TAG }}
-          fi
-
-          echo "TAG_NAME=$tag_name"
-          echo "TAG_NAME=$tag_name" >> $GITHUB_OUTPUT
-
-  build-app:
-    runs-on: 'ubuntu-24.04'
-    needs: prepare-build
-    steps:
-      - name: Clone Repository (${{ needs.prepare-build.outputs.TAG_NAME }})
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Clone repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK
-        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        uses: actions/setup-java@v4
         with:
-          java-version-file: .github/.java-version
+          java-version: 17
           distribution: temurin
 
-      - name: Set up gradle
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Check code format
         run: ./gradlew spotlessCheck
 
-      - name: Build app
+      - name: Build benchmark APKs
         run: ./gradlew assembleBenchmark
 
-      - name: Run unit tests
-        run: ./gradlew testReleaseUnitTest
-
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@f30bdd30588842ac76044ecdbd4b6d0e3e813478
-        with:
-          releaseDirectory: app/build/outputs/apk/benchmark
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: '35.0.1'
-
-      - name: Get SHA & clean up build artifacts
-        id: get_sha
+      - name: Rename APKs
         run: |
           set -e
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-universal-benchmark-signed.apk Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-arm64-v8a-benchmark-signed.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-armeabi-v7a-benchmark-signed.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86-benchmark-signed.apk Komikku-x86-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86_64-benchmark-signed.apk Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          cd app/build/outputs/apk/benchmark
+          for f in app-*-benchmark.apk; do
+            [ -e "$f" ] || continue
+            abi="${f#app-}"; abi="${abi%-benchmark.apk}"
+            mv "$f" "Tegaki-${VERSION}-${abi}-benchmark.apk"
+          done
+          ls -la
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@v4
         with:
-          path: "**/*.apk"
+          name: Tegaki-benchmark
+          path: app/build/outputs/apk/benchmark/*.apk
           retention-days: 30
