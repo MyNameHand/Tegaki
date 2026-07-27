@@ -2,6 +2,8 @@ import mihon.buildlogic.Config
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
+import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("mihon.android.application")
@@ -23,6 +25,37 @@ if (Config.includeTelemetry) {
 shortcutHelper.setFilePath("./shortcuts.xml")
 
 // KMK -->
+// Tegaki release signing, following the pattern Google documents (and Mihon uses): credentials in
+// a gitignored keystore.properties locally, environment variables on CI, and signing performed by
+// Gradle during the build rather than by a post-build step.
+//
+// Falls back to the pinned debug keystore, then to the AGP default, so a checkout with neither
+// still builds — it just produces differently-signed APKs that cannot update a real install.
+val releaseKeystoreProperties = rootProject.file("keystore.properties").takeIf { it.exists() }
+    ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
+
+// CI supplies the keystore as base64 so no key file is ever written to the repo checkout.
+val releaseKeystoreFile = System.getenv("RELEASE_KEYSTORE_BASE64")
+    ?.takeIf(String::isNotBlank)
+    ?.let { encoded ->
+        layout.buildDirectory.get().asFile.resolve("tegaki-release.keystore").apply {
+            parentFile.mkdirs()
+            writeBytes(Base64.getDecoder().decode(encoded.trim()))
+        }
+    }
+    ?: (releaseKeystoreProperties?.getProperty("storeFile") ?: "release.keystore")
+        .let(rootProject::file)
+        .takeIf { it.exists() }
+
+val releaseStorePassword: String? = releaseKeystoreProperties?.getProperty("storePassword")
+    ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+val releaseKeyAlias: String = releaseKeystoreProperties?.getProperty("keyAlias")
+    ?: System.getenv("RELEASE_KEY_ALIAS") ?: "tegaki"
+val releaseKeyPassword: String? = releaseKeystoreProperties?.getProperty("keyPassword")
+    ?: System.getenv("RELEASE_KEY_PASSWORD") ?: releaseStorePassword
+
+val hasReleaseSigning = releaseKeystoreFile != null && releaseStorePassword != null
+
 // A pinned debug keystore (provided by CI) so preview builds keep a stable
 // signature and install as in-place updates. Absent locally -> AGP default.
 val pinnedDebugKeystore = rootProject.file("debug.keystore")
@@ -59,6 +92,19 @@ android {
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
+            }
+        }
+        // Upstream Komikku signs release/preview APKs in CI and has no Gradle signing config at
+        // all. Tegaki builds and publishes locally, so the real key is wired in here instead.
+        if (hasReleaseSigning) {
+            create("tegakiRelease") {
+                storeFile = releaseKeystoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
@@ -102,7 +148,13 @@ android {
 
             // KMK --> Tegaki ships this as its own standalone app (package app.tegaki,
             // no .beta suffix, clean version name), presented as a stable release.
-            signingConfig = debug.signingConfig
+            // Signed with the real Tegaki key when keystore.properties / RELEASE_KEYSTORE_* are
+            // present; otherwise falls back to the pinned debug keystore so builds still work.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("tegakiRelease")
+            } else {
+                debug.signingConfig
+            }
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 

@@ -23,3 +23,6 @@ local.properties
 app/standard/preview/*
 
 debug.keystore
+
+keystore.properties
+release.keystore
