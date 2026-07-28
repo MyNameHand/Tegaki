@@ -1,10 +1,13 @@
 name: Test Builder
-# Builds and publishes a rolling soak build from the `test` branch as a pre-release.
+# Builds and publishes a rolling soak build as a pre-release.
 #
-# Same signing path as the stable release workflow, so a test build and a stable build carry
-# an identical certificate and install over one another. The `test` branch carries the channel
-# identity commit (.test application id suffix + teal icon), so this installs alongside stable
-# rather than replacing it.
+# The test channel is the `preview` build variant of whatever branch this is dispatched from —
+# .test application id and teal icon from src/beta/res — so it installs alongside stable rather
+# than replacing it. This is how upstream Mihon and Komikku separate their channels; Tegaki used
+# to keep the identity on a long-lived `test` branch, which silently shipped stale code whenever
+# that branch fell behind main.
+#
+# Same signing path as the stable workflow, so both channels carry an identical certificate.
 
 on:
   workflow_dispatch:
@@ -22,10 +25,9 @@ jobs:
     runs-on: 'ubuntu-24.04'
 
     steps:
-      - name: Clone repository (test branch)
+      - name: Clone repository
         uses: actions/checkout@v4
         with:
-          ref: test
           fetch-depth: 0
 
       - name: Derive rolling tag
@@ -35,15 +37,6 @@ jobs:
           COUNT=$(git rev-list --count HEAD)
           echo "TAG=r$COUNT" >> $GITHUB_OUTPUT
           echo "VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)" >> $GITHUB_OUTPUT
-
-      - name: Verify this is the test channel
-        run: |
-          set -e
-          if ! grep -q 'applicationIdSuffix = ".test"' app/build.gradle.kts; then
-            echo "::error::test branch is missing the channel identity commit — a build from it would replace the stable app"
-            exit 1
-          fi
-          echo "Channel identity present"
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -90,14 +83,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.TAG }}
-          target_commitish: test
+          target_commitish: ${{ github.sha }}
           name: Tegaki Test ${{ steps.tag.outputs.TAG }}
           draft: true
           prerelease: true
           body: |
             **Tegaki Test ${{ steps.tag.outputs.TAG }}** — rolling test build (`app.tegaki.test`, teal icon, installs alongside stable).
 
-            Built from `test` at version ${{ steps.tag.outputs.VERSION }}.
+            Built from `main` at version ${{ steps.tag.outputs.VERSION }}.
           files: |
             app/build/outputs/apk/preview/Tegaki-Test-arm64-v8a.apk
             app/build/outputs/apk/preview/Tegaki-Test-universal.apk

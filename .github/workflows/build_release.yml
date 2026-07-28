@@ -70,18 +70,24 @@ jobs:
         run: ./gradlew testReleaseUnitTest
 
       - name: Build signed APKs
-        run: ./gradlew assemblePreview -Penable-updater
+        run: ./gradlew assembleRelease -Penable-updater
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 
-      - name: Verify APKs are signed with the release key
+      - name: Verify signing and package id
         run: |
           set -e
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -r | head -1)
-          APK=app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -r | head -1)
+          APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          "$AAPT" dump badging "$APK" | head -1
+          # Stable must be the bare application id — a .test suffix here would mean the release
+          # was built from the wrong variant and would install alongside stable instead of updating it.
+          "$AAPT" dump badging "$APK" | head -1 | grep -qE "name='app\.tegaki'" \
+            || { echo "::error::package id is not app.tegaki — wrong build variant"; exit 1; }
           "$APKSIGNER" verify --print-certs "$APK"
           if "$APKSIGNER" verify --print-certs "$APK" | grep -q 'CN=Android Debug'; then
             echo "::error::Signed with the debug keystore — release secrets are missing or wrong"
@@ -91,13 +97,13 @@ jobs:
       - name: Rename APKs
         run: |
           set -e
-          cd app/build/outputs/apk/preview
+          cd app/build/outputs/apk/release
           V="${{ steps.tag.outputs.VERSION }}"
-          mv app-arm64-v8a-preview.apk   "Tegaki-${V}-arm64-v8a.apk"
-          mv app-armeabi-v7a-preview.apk "Tegaki-${V}-armeabi-v7a.apk"
-          mv app-x86-preview.apk         "Tegaki-${V}-x86.apk"
-          mv app-x86_64-preview.apk      "Tegaki-${V}-x86_64.apk"
-          mv app-universal-preview.apk   "Tegaki-${V}-universal.apk"
+          mv app-arm64-v8a-release.apk   "Tegaki-${V}-arm64-v8a.apk"
+          mv app-armeabi-v7a-release.apk "Tegaki-${V}-armeabi-v7a.apk"
+          mv app-x86-release.apk         "Tegaki-${V}-x86.apk"
+          mv app-x86_64-release.apk      "Tegaki-${V}-x86_64.apk"
+          mv app-universal-release.apk   "Tegaki-${V}-universal.apk"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -107,5 +113,5 @@ jobs:
           draft: true
           prerelease: false
           files: |
-            app/build/outputs/apk/preview/Tegaki-${{ steps.tag.outputs.VERSION }}-arm64-v8a.apk
-            app/build/outputs/apk/preview/Tegaki-${{ steps.tag.outputs.VERSION }}-universal.apk
+            app/build/outputs/apk/release/Tegaki-${{ steps.tag.outputs.VERSION }}-arm64-v8a.apk
+            app/build/outputs/apk/release/Tegaki-${{ steps.tag.outputs.VERSION }}-universal.apk

@@ -116,14 +116,22 @@ android {
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
         }
+        // KMK --> Tegaki's STABLE channel: app.tegaki, purple icon from src/main/res.
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink
             isShrinkResources = Config.enableCodeShrink
 
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
 
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("tegakiRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = true)}\"")
         }
+        // KMK <--
 
         val commonMatchingFallbacks = listOf(release.name)
 
@@ -143,24 +151,28 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
+        // KMK --> Tegaki's TEST channel: app.tegaki.test, teal icon from src/beta/res, so a soak
+        // build installs alongside stable instead of replacing it.
+        //
+        // Both channels are variants of the same commit, as upstream Mihon and Komikku do it.
+        // Tegaki previously used `preview` for stable and carried the test channel's identity on
+        // a separate branch, which silently shipped stale code whenever that branch fell behind.
         create("preview") {
             initWith(release)
 
-            // KMK --> Tegaki ships this as its own standalone app (package app.tegaki,
-            // no .beta suffix, clean version name), presented as a stable release.
-            // Signed with the real Tegaki key when keystore.properties / RELEASE_KEYSTORE_* are
-            // present; otherwise falls back to the pinned debug keystore so builds still work.
+            applicationIdSuffix = ".test"
+
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("tegakiRelease")
             } else {
-                debug.signingConfig
+                signingConfigs.getByName("debug")
             }
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
-            // KMK <--
         }
+        // KMK <--
         create("benchmark") {
             initWith(release)
 
