@@ -35,12 +35,14 @@ class GetApplicationReleaseTest {
         every { preference.get() } returns 0
         every { preference.set(any()) }.answers { }
 
+        // Tegaki: the test channel tracks pre-releases, so a preview update must be one.
         val releases = listOf(
             Release(
                 "r2000",
                 "info",
                 "http://example.com/release_link",
                 "http://example.com/release_link.apk",
+                preRelease = true,
             ),
         )
 
@@ -58,6 +60,61 @@ class GetApplicationReleaseTest {
 
         // KMK: Don't cast, will throw exception if the result is different from expected
         result shouldBe GetApplicationRelease.Result.NewUpdate(releases.getLatest()!!)
+    }
+
+    @Test
+    fun `When on stable expect pre-releases to be ignored`() = runTest {
+        every { preference.get() } returns 0
+        every { preference.set(any()) }.answers { }
+
+        coEvery { releaseService.releaseNotes(any()) } returns listOf(
+            Release(
+                "v2.0.0",
+                "info",
+                "http://example.com/release_link",
+                "http://example.com/release_link.apk",
+                preRelease = true,
+            ),
+        )
+
+        val result = getApplicationRelease.await(
+            GetApplicationRelease.Arguments(
+                isFoss = false,
+                isPreview = false,
+                commitCount = 1000,
+                versionName = "1.0.0",
+                repository = "test",
+            ),
+        )
+
+        result shouldBe GetApplicationRelease.Result.NoNewUpdate
+    }
+
+    @Test
+    fun `When on preview expect full releases to be ignored`() = runTest {
+        every { preference.get() } returns 0
+        every { preference.set(any()) }.answers { }
+
+        coEvery { releaseService.releaseNotes(any()) } returns listOf(
+            Release(
+                "r2000",
+                "info",
+                "http://example.com/release_link",
+                "http://example.com/release_link.apk",
+            ),
+        )
+
+        val result = getApplicationRelease.await(
+            GetApplicationRelease.Arguments(
+                isFoss = false,
+                isPreview = true,
+                commitCount = 1000,
+                versionName = "",
+                repository = "test",
+            ),
+        )
+
+        result shouldBe GetApplicationRelease.Result.NoNewUpdate
     }
 
     @Test
