@@ -35,7 +35,7 @@ class AppUpdateChecker(
             val result = getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    // Test channel (app.tegaki.test) compares by commit count and reads
+                    // Test channel (moe.tegaki.test) compares by commit count and reads
                     // prereleases; the stable channel compares by SemVer on full releases.
                     isPreview = IS_TEST_CHANNEL,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
@@ -94,7 +94,7 @@ class AppUpdateChecker(
     // KMK <--
 }
 
-// Test builds (app.tegaki.test) form a rolling channel keyed by commit count and served from
+// Test builds (moe.tegaki.test) form a rolling channel keyed by commit count and served from
 // prereleases (tagged "r<commitCount>"); stable builds use SemVer on full releases. Same repo.
 val IS_TEST_CHANNEL: Boolean = BuildConfig.APPLICATION_ID.endsWith(".test")
 

@@ -1,7 +1,7 @@
 name: Benchmark Builder
 # Manually build the benchmark variant for performance testing on a device.
 #
-# The benchmark build type uses applicationId app.tegaki.benchmark, so it installs alongside
+# The benchmark build type uses applicationId moe.tegaki.benchmark, so it installs alongside
 # stable and test. It is a throwaway dev artifact that is never published, so it is signed with
 # whatever debug key the runner generates — no release secrets are involved. The macrobenchmark
 # tests themselves need a physical device, so this only produces the APK to run them against.

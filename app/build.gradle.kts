@@ -65,15 +65,15 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.tegaki"
+        applicationId = "moe.tegaki"
 
         // Tegaki release discipline: for each new release, bump BOTH versionCode and
         // versionName, then publish a GitHub release tagged "v<versionName>" (must have
         // >= 3 numeric parts, e.g. v1.13.7). The in-app updater compares the installed
         // versionName against the newest release tag on MyNameHand/Tegaki.
         // Tegaki versioning tracks the merged Komikku stable base (1.14.1) + fork bump.
-        versionCode = 85
-        versionName = "1.14.5"
+        versionCode = 86
+        versionName = "1.14.6"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
@@ -116,7 +116,7 @@ android {
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
         }
-        // KMK --> Tegaki's STABLE channel: app.tegaki, purple icon from src/main/res.
+        // KMK --> Tegaki's STABLE channel: moe.tegaki, purple icon from src/main/res.
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink
             isShrinkResources = Config.enableCodeShrink
@@ -151,7 +151,7 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
-        // KMK --> Tegaki's TEST channel: app.tegaki.test, teal icon from src/beta/res, so a soak
+        // KMK --> Tegaki's TEST channel: moe.tegaki.test, teal icon from src/beta/res, so a soak
         // build installs alongside stable instead of replacing it.
         //
         // Both channels are variants of the same commit, as upstream Mihon and Komikku do it.

@@ -65,8 +65,8 @@ jobs:
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -r | head -1)
           APK=app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
           "$AAPT" dump badging "$APK" | head -1
-          "$AAPT" dump badging "$APK" | head -1 | grep -q "name='app.tegaki.test'" \
-            || { echo "::error::package id is not app.tegaki.test"; exit 1; }
+          "$AAPT" dump badging "$APK" | head -1 | grep -q "name='moe.tegaki.test'" \
+            || { echo "::error::package id is not moe.tegaki.test"; exit 1; }
           if "$APKSIGNER" verify --print-certs "$APK" | grep -q 'CN=Android Debug'; then
             echo "::error::Signed with the debug keystore — release secrets are missing or wrong"
             exit 1
@@ -88,7 +88,7 @@ jobs:
           draft: true
           prerelease: true
           body: |
-            **Tegaki Test ${{ steps.tag.outputs.TAG }}** — rolling test build (`app.tegaki.test`, teal icon, installs alongside stable).
+            **Tegaki Test ${{ steps.tag.outputs.TAG }}** — rolling test build (`moe.tegaki.test`, teal icon, installs alongside stable).
 
             Built from `main` at version ${{ steps.tag.outputs.VERSION }}.
           files: |

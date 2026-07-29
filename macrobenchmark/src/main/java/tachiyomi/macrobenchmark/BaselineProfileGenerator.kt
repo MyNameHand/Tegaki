@@ -12,7 +12,7 @@ class BaselineProfileGenerator {
 
     @Test
     fun generate() = baselineProfileRule.collect(
-        packageName = "app.tegaki.benchmark",
+        packageName = "moe.tegaki.benchmark",
         profileBlock = {
             pressHome()
             startActivityAndWait()

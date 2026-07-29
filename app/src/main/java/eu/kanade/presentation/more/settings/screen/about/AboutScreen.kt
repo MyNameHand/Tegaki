@@ -342,7 +342,7 @@ class AboutScreen : Screen() {
                     }
                 }
 
-                // Test channel (app.tegaki.test): rolling build identified by commit count.
+                // Test channel (moe.tegaki.test): rolling build identified by commit count.
                 BuildConfig.APPLICATION_ID.endsWith(".test") -> {
                     "Test r${BuildConfig.COMMIT_COUNT}".let {
                         if (withBuildDate) {

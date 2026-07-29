@@ -87,7 +87,7 @@ jobs:
           # Stable must be the bare application id — a .test suffix here would mean the release
           # was built from the wrong variant and would install alongside stable instead of updating it.
           "$AAPT" dump badging "$APK" | head -1 | grep -qE "name='app\.tegaki'" \
-            || { echo "::error::package id is not app.tegaki — wrong build variant"; exit 1; }
+            || { echo "::error::package id is not moe.tegaki — wrong build variant"; exit 1; }
           "$APKSIGNER" verify --print-certs "$APK"
           if "$APKSIGNER" verify --print-certs "$APK" | grep -q 'CN=Android Debug'; then
             echo "::error::Signed with the debug keystore — release secrets are missing or wrong"
