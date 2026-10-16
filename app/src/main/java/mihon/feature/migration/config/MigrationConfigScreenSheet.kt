@@ -159,11 +159,6 @@ fun MigrationConfigScreenSheet(
                     preference = preferences.migrationHideWithoutUpdates(),
                 )
                 // KMK -->
-                MigrationSheetSwitchItem(
-                    title = stringResource(KMR.strings.migrationConfigScreen_hideBehindTitle),
-                    subtitle = stringResource(KMR.strings.migrationConfigScreen_hideBehindSubtitle),
-                    preference = preferences.migrationHideBehind(),
-                )
                 if (fullSettings) {
                     // KMK <--
                     MigrationSheetDividerItem()
@@ -177,6 +172,18 @@ fun MigrationConfigScreenSheet(
                             preference = migrationSmartSearchSingleEntryPref,
                         )
                     }
+                    val spreadAcrossSourcesPref = preferences.migrationSpreadAcrossSources()
+                    val isSpreadAcrossSources by spreadAcrossSourcesPref.collectAsState()
+                    if (!isSingleEntry) {
+                        // Spreading a batch over several sources means no single site holds most of
+                        // the library, so a site shutting down, or rate-limiting library updates,
+                        // only touches a fraction of it.
+                        MigrationSheetSwitchItem(
+                            title = stringResource(KMR.strings.migrationConfigScreen_spreadAcrossSourcesTitle),
+                            subtitle = stringResource(KMR.strings.migrationConfigScreen_spreadAcrossSourcesSubtitle),
+                            preference = spreadAcrossSourcesPref,
+                        )
+                    }
                     if (!isSingleEntry || isSmartSearchSingleEntry) {
                         // KMK <--
                         MigrationSheetWarningItem(stringResource(MR.strings.migrationConfigScreen_enhancedOptionsWarning))
@@ -185,11 +192,14 @@ fun MigrationConfigScreenSheet(
                             subtitle = stringResource(MR.strings.migrationConfigScreen_deepSearchModeSubtitle),
                             preference = preferences.migrationDeepSearchMode(),
                         )
-                        MigrationSheetSwitchItem(
-                            title = stringResource(MR.strings.migrationConfigScreen_prioritizeByChaptersTitle),
-                            subtitle = stringResource(MR.strings.migrationConfigScreen_prioritizeByChaptersSubtitle),
-                            preference = preferences.migrationPrioritizeByChapters(),
-                        )
+                        // Both decide which source wins, so spreading takes over when it is on.
+                        if (isSingleEntry || !isSpreadAcrossSources) {
+                            MigrationSheetSwitchItem(
+                                title = stringResource(MR.strings.migrationConfigScreen_prioritizeByChaptersTitle),
+                                subtitle = stringResource(MR.strings.migrationConfigScreen_prioritizeByChaptersSubtitle),
+                                preference = preferences.migrationPrioritizeByChapters(),
+                            )
+                        }
                     }
                 }
             }

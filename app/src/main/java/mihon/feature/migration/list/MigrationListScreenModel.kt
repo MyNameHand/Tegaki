@@ -35,6 +35,7 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
+import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
@@ -55,6 +56,7 @@ class MigrationListScreenModel(
     private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
     private val migrateManga: MigrateMangaUseCase = Injekt.get(),
     private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
+    private val getFavorites: GetFavorites = Injekt.get(),
 ) : StateScreenModel<MigrationListScreenModel.State>(State()) {
 
     private val smartSearchEngine = SmartSourceSearchEngine(extraSearchQuery)
@@ -69,10 +71,10 @@ class MigrationListScreenModel(
     private var hideUnmatched = preferences.migrationHideUnmatched().get()
     private var hideWithoutUpdates = preferences.migrationHideWithoutUpdates().get()
     // KMK -->
-    private var hideBehind = preferences.migrationHideBehind().get()
     private var prioritizeByChapters = preferences.migrationPrioritizeByChapters().get()
     private var deepSearchMode = preferences.migrationDeepSearchMode().get()
     // KMK <--
+    private var spreadAcrossSources = preferences.migrationSpreadAcrossSources().get()
 
     private val navigateBackChannel = Channel<Unit>()
     val navigateBackEvent = navigateBackChannel.receiveAsFlow()
@@ -146,8 +148,23 @@ class MigrationListScreenModel(
 
         val sources = preferences.migrationSources().get()
             .mapNotNull { sourceManager.get(it) }
+        // Library entries per source, kept current as this batch assigns targets, so spreading
+        // accounts for both the existing library and the entries moved so far.
+        val load = if (spreadAcrossSources) {
+            getFavorites.await().groupingBy { it.source }.eachCount().toMutableMap()
+        } else {
+            mutableMapOf()
+        }
 
         for (manga in mangas) {
+            val isBehind = { match: Pair<Manga, ChapterInfo> ->
+                MigrationTargetPicker.isBehind(
+                    currentLatest = manga.latestChapter,
+                    currentCount = manga.chapterCount,
+                    targetLatest = match.second.latestChapter,
+                    targetCount = match.second.chapterCount,
+                )
+            }
             if (!currentCoroutineContext().isActive) break
             if (manga.manga.id !in state.value.mangaIds) continue
             if (manga.searchResult.value != SearchResult.Searching) continue
@@ -157,7 +174,7 @@ class MigrationListScreenModel(
                 // KMK -->
                 manga.searchingJob = manga.migrationScope.async {
                     // KMK <--
-                    if (prioritizeByChapters) {
+                    if (prioritizeByChapters && !spreadAcrossSources) {
                         val sourceSemaphore = Semaphore(5)
                         sources.map { source ->
                             async innerAsync@{
@@ -169,13 +186,18 @@ class MigrationListScreenModel(
                             }
                         }
                             .mapNotNull { it.await() }
+                            // Never pick a match that would lose chapters, even the furthest one.
+                            .filterNot(isBehind)
                             .maxByOrNull { it.second.latestChapter ?: 0.0 }
                     } else {
-                        sources.forEach { source ->
-                            val result = searchSource(manga.manga, source, deepSearchMode)
-                            if (result != null) return@async result
+                        val ordered = if (spreadAcrossSources) {
+                            MigrationTargetPicker.orderByLoad(sources, load) { it.id }
+                        } else {
+                            sources
                         }
-                        null
+                        MigrationTargetPicker.firstUpToDate(ordered, isBehind) { source ->
+                            searchSource(manga.manga, source, deepSearchMode)
+                        }
                     }
                 }
                 // KMK -->
@@ -205,14 +227,12 @@ class MigrationListScreenModel(
             ) {
                 removeManga(manga)
             }
-            // KMK -->
-            if (result != null &&
-                hideBehind &&
-                (result.second.latestChapter ?: 0.0) < (manga.latestChapter ?: 0.0)
-            ) {
-                removeManga(manga)
+
+            // Only count entries that survived the hide options: those are the ones being moved.
+            if (spreadAcrossSources && result != null && items.any { it === manga }) {
+                load.merge(result.first.source, 1, Int::plus)
+                load.merge(manga.manga.source, -1, Int::plus)
             }
-            // KMK <--
 
             updateMigrationProgress()
         }
@@ -442,9 +462,9 @@ class MigrationListScreenModel(
     fun updateOptions() {
         hideUnmatched = preferences.migrationHideUnmatched().get()
         hideWithoutUpdates = preferences.migrationHideWithoutUpdates().get()
-        hideBehind = preferences.migrationHideBehind().get()
         prioritizeByChapters = preferences.migrationPrioritizeByChapters().get()
         deepSearchMode = preferences.migrationDeepSearchMode().get()
+        spreadAcrossSources = preferences.migrationSpreadAcrossSources().get()
     }
     // KMK <--
 

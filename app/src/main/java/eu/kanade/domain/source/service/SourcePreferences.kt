@@ -95,9 +95,7 @@ class SourcePreferences(
 
     fun migrationHideWithoutUpdates() = preferenceStore.getBoolean("migration_hide_without_updates", false)
 
-    // KMK -->
-    fun migrationHideBehind() = preferenceStore.getBoolean("migration_hide_behind", false)
-    // KMK <--
+    fun migrationSpreadAcrossSources() = preferenceStore.getBoolean("migration_spread_across_sources", false)
 
     // KMK -->
     fun migrationSmartSearchSingleEntry() = preferenceStore.getBoolean("migration_smart_search_single_entry", false)
