@@ -30,6 +30,7 @@ import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import mihon.feature.migration.list.models.MigratingManga
 import mihon.feature.migration.list.models.MigratingManga.SearchResult
+import mihon.feature.migration.list.search.AlternativeTitles
 import mihon.feature.migration.list.search.SmartSourceSearchEngine
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
@@ -244,10 +245,12 @@ class MigrationListScreenModel(
         deepSearchMode: Boolean,
     ): Pair<Manga, ChapterInfo>? {
         return try {
+            // Sources list different titles for the same series, so match against all of them.
+            val alternativeTitles = AlternativeTitles.fromDescription(manga.description)
             val searchResult = if (deepSearchMode) {
-                smartSearchEngine.deepSearch(source, manga.title)
+                smartSearchEngine.deepSearch(source, manga.title, alternativeTitles)
             } else {
-                smartSearchEngine.regularSearch(source, manga.title)
+                smartSearchEngine.regularSearch(source, manga.title, alternativeTitles)
             }
 
             if (searchResult == null || (searchResult.url == manga.url && source.id == manga.source)) return null

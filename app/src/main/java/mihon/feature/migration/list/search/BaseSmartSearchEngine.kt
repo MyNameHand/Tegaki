@@ -17,21 +17,44 @@ abstract class BaseSmartSearchEngine<T>(
 
     protected abstract fun getTitle(result: T): String
 
-    protected suspend fun regularSearch(searchAction: SearchAction<T>, title: String): T? {
+    /**
+     * [alternativeTitles] are other names the series goes by. A result is scored against the best
+     * of all of them, so a source listing the English title still matches an entry stored under
+     * its romaji one, and the other way round. Empty keeps the original single-title behaviour.
+     */
+    protected suspend fun regularSearch(
+        searchAction: SearchAction<T>,
+        title: String,
+        alternativeTitles: List<String> = emptyList(),
+    ): T? {
         return baseSearch(searchAction, listOf(title)) {
-            normalizedLevenshtein.similarity(title, getTitle(it))
+            if (alternativeTitles.isEmpty()) {
+                normalizedLevenshtein.similarity(title, getTitle(it))
+            } else {
+                bestSimilarity(listOf(title) + alternativeTitles, getTitle(it))
+            }
         }
     }
 
-    protected suspend fun deepSearch(searchAction: SearchAction<T>, title: String): T? {
+    protected suspend fun deepSearch(
+        searchAction: SearchAction<T>,
+        title: String,
+        alternativeTitles: List<String> = emptyList(),
+    ): T? {
         val cleanedTitle = cleanDeepSearchTitle(title)
+        val cleanedTitles = listOf(cleanedTitle) + alternativeTitles.map(::cleanDeepSearchTitle)
 
         val queries = getDeepSearchQueries(cleanedTitle)
 
         return baseSearch(searchAction, queries) {
             val cleanedMangaTitle = cleanDeepSearchTitle(getTitle(it))
-            normalizedLevenshtein.similarity(cleanedTitle, cleanedMangaTitle)
+            cleanedTitles.maxOf { known -> normalizedLevenshtein.similarity(known, cleanedMangaTitle) }
         }
+    }
+
+    private fun bestSimilarity(knownTitles: List<String>, candidate: String): Double {
+        val lowerCandidate = candidate.lowercase(Locale.ROOT)
+        return knownTitles.maxOf { normalizedLevenshtein.similarity(it.lowercase(Locale.ROOT), lowerCandidate) }
     }
 
     private suspend fun baseSearch(
